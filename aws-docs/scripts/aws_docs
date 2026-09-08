@@ -1,0 +1,17 @@
+#!/bin/sh
+# Wrapper for the aws-docs search command (see ../SKILL.md).
+#
+# Builds aws_docs.bin from aws_docs.go when the binary is missing or older
+# than the source, then execs it. Requires only the Go toolchain.
+set -eu
+
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+bin="$dir/aws_docs.bin"
+src="$dir/aws_docs.go"
+
+if [ ! -x "$bin" ] || [ "$src" -nt "$bin" ]; then
+    echo "aws_docs: building aws_docs.bin from aws_docs.go..." >&2
+    (cd "$dir" && go build -ldflags "-s -w" -o aws_docs.bin aws_docs.go)
+fi
+
+exec "$bin" "$@"

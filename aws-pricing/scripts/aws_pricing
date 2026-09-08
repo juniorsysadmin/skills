@@ -1,0 +1,17 @@
+#!/bin/sh
+# Wrapper for the aws-pricing helper (see ../SKILL.md).
+#
+# Builds target/release/aws_pricing from the committed cargo project when the
+# binary is missing or older than the sources, then execs it. Requires only
+# the Rust toolchain (cargo).
+set -eu
+
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+bin="$dir/target/release/aws_pricing"
+
+if [ ! -x "$bin" ] || [ "$dir/src/main.rs" -nt "$bin" ] || [ "$dir/Cargo.toml" -nt "$bin" ]; then
+    echo "aws_pricing: building with cargo (first build may take a few minutes)..." >&2
+    (cd "$dir" && cargo build --release --quiet)
+fi
+
+exec "$bin" "$@"

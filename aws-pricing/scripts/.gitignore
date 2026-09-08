@@ -1,0 +1,2 @@
+# Build directory — the aws_pricing wrapper script builds the binary automatically.
+/target/
