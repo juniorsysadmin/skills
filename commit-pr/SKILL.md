@@ -115,9 +115,13 @@ STE throughout: active voice, ≤25 words per sentence, no contractions, and
 never the words `via ensure leverage utilize whereas`. No file paths or
 symbol names unless unavoidable.
 
+Density: every sentence MUST state a fact that appears in no other sentence
+and not in the title. Delete a sentence that restates the title or rephrases
+a neighbour. A cap is a ceiling, NEVER a target.
+
 | Id | Section | Force | Cap |
 |---|---|---|---|
-| a | What the change does. No frames, no background. | MUST | ≤2 sentences |
+| a | What the change does, beyond what the title states: the mechanism or the observable effect. NEVER a restatement of the title. IF the title fully states the change, omit. | MUST unless the title fully states the change | ≤2 sentences |
 | b | Background that led to this change. Sources below. | SHOULD | ≤3 sentences |
 | c | Pre-emptive answer to the one question a reviewer would ask. | RARE, on a trigger below | ≤2 sentences |
 | d | Testing. Name the test that shows the problem exists and the test that shows the fix. | SHOULD | 1–2 lines |
@@ -184,6 +188,7 @@ Applies to the commit body AND the `[PR]` body.
 | Show the testing: what was run and what it proved. |
 | Assume the reviewer believes you do not know what you are doing. Close every gap before they ask. |
 | Concrete over vague: numbers, observed failures, measured results. |
+| Every sentence adds a new fact. NEVER two phrasings of one fact; NEVER a sentence that only restates the title. |
 | Research and testing are satisfied by `[BODY].b` facts, `[BODY].c` when triggered, and `[BODY].d`. They NEVER license extra prose or a longer `[BODY].b`. |
 | The argument uses only facts the `[BODY]` source rules admit. A missing rationale stays missing; fierceness NEVER licenses an invented one. |
 
