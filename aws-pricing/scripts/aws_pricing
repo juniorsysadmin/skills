@@ -1,17 +1,17 @@
 #!/bin/sh
 # Wrapper for the aws-pricing helper (see ../SKILL.md).
 #
-# Builds target/release/aws_pricing from the committed cargo project when the
-# binary is missing or older than the sources, then execs it. Requires only
-# the Rust toolchain (cargo).
+# Builds aws_pricing.bin from aws_pricing.go when the binary is missing or
+# older than the source, then execs it. Requires only the Go toolchain; the
+# first build fetches the AWS SDK modules.
 set -eu
 
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-bin="$dir/target/release/aws_pricing"
+bin="$dir/aws_pricing.bin"
 
-if [ ! -x "$bin" ] || [ "$dir/src/main.rs" -nt "$bin" ] || [ "$dir/Cargo.toml" -nt "$bin" ]; then
-    echo "aws_pricing: building with cargo (first build may take a few minutes)..." >&2
-    (cd "$dir" && cargo build --release --quiet)
+if [ ! -x "$bin" ] || [ "$dir/aws_pricing.go" -nt "$bin" ] || [ "$dir/go.mod" -nt "$bin" ]; then
+    echo "aws_pricing: building aws_pricing.bin from aws_pricing.go..." >&2
+    (cd "$dir" && go build -ldflags "-s -w" -o aws_pricing.bin .)
 fi
 
 exec "$bin" "$@"

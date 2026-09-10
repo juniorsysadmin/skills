@@ -1,70 +1,31 @@
-# {service_name} Cost Analysis Estimate Report
+# Cost report spec
 
-## Service Overview
+Produce these sections, in this order. A section is done only when it meets
+its stated bar.
 
-{service_name} is a fully managed, serverless service that allows you to {service_description}. This service follows a pay-as-you-go pricing model, making it cost-effective for various workloads.
-
-## Pricing Model
-
-This cost analysis estimate is based on the following pricing model:
-- **ON DEMAND** pricing (pay-as-you-go) unless otherwise specified
-- Standard service configurations without reserved capacity or savings plans
-- No caching or optimization techniques applied
-
-## Assumptions
-
-{assumptions_section}
-
-## Limitations and Exclusions
-
-{limitations_section}
-
-## Cost Breakdown
-
-### Unit Pricing Details
-
-{unit_pricing_details_table}
-
-### Cost Calculation
-
-{cost_calculation_table}
-
-### Free Tier
-
-{free_tier_info}
-
-## Cost Scaling with Usage
-
-The following table illustrates how cost estimates scale with different usage levels:
-
-{usage_cost_table}
-
-### Key Cost Factors
-
-{key_cost_factors}
-
-## Projected Costs Over Time
-
-The following projections show estimated monthly costs over a 12-month period based on different growth patterns:
-
-{projected_costs}
-
-{custom_analysis_sections}
-
-## Cost Optimization Recommendations
-
-### Immediate Actions
-
-- {recommendation_1}
-- {recommendation_2}
-- {recommendation_3}
-
-### Best Practices
-
-- {best_practice_1}
-- {best_practice_2}
-- {best_practice_3}
-
-## Conclusion
-
-{conclusion}
+1. **Service overview** — one paragraph: the service, what the user runs on
+   it, and the billing dimensions that drive this estimate.
+2. **Pricing model** — state the model before any number: OnDemand
+   pay-as-you-go, no reserved capacity, no savings plans, no caching or
+   optimisation — unless the user specified otherwise, and then state what
+   they specified.
+3. **Assumptions** — every usage volume, region, and configuration the
+   calculation depends on, each as one line with its value. A number used
+   later but absent here is a defect.
+4. **Exclusions** — what the estimate leaves out (data transfer, support
+   plans, taxes, free tier if unused, cross-service costs), each with one
+   clause on why.
+5. **Unit prices** — a table of every unit price used, each fetched this
+   session and cited as unit + currency + region + term type. Unit prices
+   appear before any arithmetic that uses them.
+6. **Calculation** — the arithmetic from unit prices and assumptions to the
+   total, shown so the reader can recompute it. Flag any tiered price
+   (`beginRange != "0"`) and apply the tier boundaries explicitly.
+7. **Free tier** — what the service's free tier covers and whether it changes
+   the total; "no free tier" is a valid entry.
+8. **Cost vs usage** — a table of the total at 3–5 usage levels bracketing
+   the assumed level, with the cost drivers that dominate at each.
+9. **Optimisation recommendations** — concrete actions ranked by saving:
+   reserved/savings plans with break-even, tier thresholds worth crossing,
+   cheaper storage classes or instance families, with the price deltas
+   fetched this session where they anchor a claim.
