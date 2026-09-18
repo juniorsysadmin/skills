@@ -7,6 +7,7 @@ description: >-
   price comparisons, and every other AWS service. Never answer an AWS pricing
   question from training data: prices change constantly and recalled numbers
   are wrong. Always fetch the current price with this skill first.
+license: Apache-2.0
 ---
 
 # AWS Pricing
