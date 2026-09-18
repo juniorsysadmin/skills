@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "scopes": [
+    {
+      "name": "aws-docs",
+      "paths": [
+        "aws-docs/**"
+      ],
+      "description": "The aws-docs skill: AWS documentation search helper and its instructions"
+    },
+    {
+      "name": "aws-pricing",
+      "paths": [
+        "aws-pricing/**"
+      ],
+      "description": "The aws-pricing skill: AWS Price List helper, report template and instructions"
+    },
+    {
+      "name": "commit-pr",
+      "paths": [
+        "commit-pr/**"
+      ],
+      "description": "The commit-pr skill: commit and pull request rules plus the scope vocabulary guide"
+    },
+    {
+      "name": "meta",
+      "paths": [
+        ".code-scopes"
+      ],
+      "description": "The repository's own tooling and configuration"
+    }
+  ]
+}
