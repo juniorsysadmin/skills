@@ -8,6 +8,7 @@ description: >-
   Prefer this over find-docs and over generic web search for anything on
   docs.aws.amazon.com, and use it even when you think you know the answer, since
   AWS API details, defaults, and limits change frequently.
+license: Apache-2.0
 ---
 
 # AWS Documentation
