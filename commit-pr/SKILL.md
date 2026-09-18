@@ -6,6 +6,7 @@ description: >-
   written as a fierce, reviewer-proof argument with no attribution trailers.
   Use when the user asks to commit, write a commit message, open or draft a
   PR, or push a branch.
+license: Apache-2.0
 argument-hint: "[master|pr] [ticket-id]"
 ---
 
