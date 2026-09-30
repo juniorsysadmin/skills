@@ -1,8 +1,9 @@
 # SCOPES
 
-Read only when `[SCOPES]` in [SKILL.md](SKILL.md) sends you here: `.code-scopes`
-is missing, its `version` is unknown, or the `.code-scopes-validated` stamp is
-missing or before today.
+Read only when `[SCOPES]` in [SKILL.md](SKILL.md) sends you here: `scopes.py
+--gate` printed `STALE`, a `DEAD GLOB` fired, or a staged path gave `NO MATCH`.
+
+`S=.claude/skills/commit-pr/scripts`; set it in every Bash call.
 
 ## Schema
 
@@ -29,115 +30,34 @@ missing or before today.
 | Field | Rule |
 |---|---|
 | `version` | integer, `1` |
-| `scopes` | ordered array, MOST SPECIFIC FIRST; `[SCOPES]` resolution takes the first match |
+| `scopes` | ordered array, MOST SPECIFIC FIRST; resolution takes the first match |
 | `scopes[].name` | the literal string used in `type(scope):`. Lowercase, no spaces, no `/` |
-| `scopes[].paths` | ≥1 glob, relative to the repository root, `**` allowed |
-| `scopes[].description` | one sentence naming what the scope covers |
+| `scopes[].paths` | ≥1 glob, relative to the repository root. `**` crosses `/`, `*` stays within one segment |
+| `scopes[].description` | one sentence naming what the scope covers. NO counts, NO enumerated members: nothing a new sibling directory would change |
 
-Order matters: `services/checkout/**` must precede `services/**`, else nothing
-ever resolves to `checkout`.
-
-The stamp lives apart: `.code-scopes-validated` at the repository root holds
-one line, the UTC date `YYYY-MM-DD` of the last pass. It is untracked, is
-expected in `git status` output, and is NEVER staged or committed.
-
-A scope owns its documentation through `paths`, so `docs/services/inventory.md`
-belongs to the `inventory` entry. NEVER create a `docs` scope; it would produce
-`docs(docs)`.
-
-## Generate
-
-Trigger: `.code-scopes` missing, or `version` unknown.
-
-| Step | Action |
+| Constraint | Reason |
 |---|---|
-| 1 | `git ls-files --cached --others --exclude-standard` for the inventory. Tracked plus new files, NEVER gitignored build output. |
-| 2 | IF a structure guide exists (`CLAUDE.md`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`), read its structure section and prefer the names it already uses. |
-| 3 | One scope per top-level directory, EXCEPT: split a directory into sub-scopes where it holds independently deployed or independently reviewed units (`services/*`, `packages/*`); collapse sibling directories that no commit would ever isolate (40 `plugin-*` directories → one `plugins`). |
-| 4 | Target 15–25 entries. A vocabulary too large to hold is worse than a coarse one. |
-| 5 | Emit one scope covering the repository's own tooling and configuration, and give it `.code-scopes` in its `paths`, so the `[SCOPES]` chore commit has a scope. Name it `claude` IF `.claude/` exists, else `meta`. |
-| 6 | Attach each documentation path to the scope of the area it describes. |
-| 7 | Sort most-specific-first, write the file, then write the stamp. |
+| `services/checkout/**` precedes `services/**` | else nothing resolves to `checkout` |
+| A family of siblings in one scope = ONE family glob (`rust-*/**`), never one glob per member | a new member then needs no edit and no chore commit |
+| Every sibling that a family glob would capture but that belongs elsewhere sits in an EARLIER scope | first match wins; the exception must be seen first |
+| A scope owns its documentation through `paths` (`docs/services/inventory.md` → `inventory`) | NEVER a `docs` scope: it yields `docs(docs)` |
+| `indent=2`, one path per line | the chore commit's diff shows one line per changed path |
 
-`git log` is NEVER a source. Scope names used in past commits carry no
-authority, and the `[PREFLIGHT]` ban on reading history stays absolute.
+The stamp `.code-scopes-validated` (one line, UTC `YYYY-MM-DD`) is untracked,
+expected in `git status`, NEVER staged or committed.
 
-## Validate
+## Commands
 
-Trigger: the file exists, `version` is known, the stamp is missing or before
-today.
-
-| Finding | Action |
+| Action | Command |
 |---|---|
-| A `paths` glob matches no file in the inventory | Remove the glob. Remove the whole scope when no glob is left. |
-| A top-level entry in the inventory matches no scope | Add a scope for it, per Generate steps 3 and 4. |
-| An independently deployed unit below a scoped directory matches no more specific scope | Add a scope for it, ordered before its parent. |
-| A scope name no longer matches the directory it covers after a rename | Rename the scope. Keep the paths correct. |
-| An entry sorts after a less specific entry that shadows it | Re-sort most-specific-first. |
-| The JSON contains a `last_validated` field | Remove the field; the stamp file replaced it. |
-| Nothing above fired | The vocabulary is current. |
+| Inventory: tracked plus new, never ignored | `git ls-files --cached --others --exclude-standard` |
+| Top-level entries | `git ls-files --cached --others --exclude-standard \| cut -d/ -f1 \| sort -u` |
+| Dead globs, then the scope of each path | `python3 $S/scopes.py <path>...` |
+| Scope of every inventory path | `git ls-files -z --cached --others --exclude-standard \| xargs -0 python3 $S/scopes.py` |
+| Stamp write: the last step of every pass | `python3 $S/scopes.py --stamp` |
 
-Always finish with the stamp write below. Rewrite `.code-scopes` only when a
-finding fired. Report every add, removal and rename to the user in
-`[OUTPUT]`.
-
-## Read and write
-
-NEVER hand-edit the JSON, and NEVER resolve a glob by eye.
-
-```bash
-# Freshness gate: prints STALE when a pass is due.
-[ -f .code-scopes ] || echo STALE
-jq -e '.version == 1' .code-scopes > /dev/null || echo STALE
-[ "$(cat .code-scopes-validated 2>/dev/null)" = "$(date -u +%F)" ] \
-  && echo FRESH || echo STALE
-
-# Gitignore hint for [OUTPUT]. NEVER edit .gitignore from this skill.
-git check-ignore -q .code-scopes-validated \
-  || echo "HINT: add .code-scopes-validated to .gitignore"
-
-# Inventory for Generate and Validate. Tracked plus new, never ignored.
-git ls-files --cached --others --exclude-standard
-git ls-files --cached --others --exclude-standard | cut -d/ -f1 | sort -u
-
-# Stamp write: the last step of every Generate or Validate pass.
-date -u +%F > .code-scopes-validated
-```
-
-Save this resolver once as `$SCRATCHPAD/scopes.py`, then run it. It prints
-every dead glob, then the scope of each path given as an argument. `**`
-matches across separators, `*` matches within one segment.
-
-```python
-import json, re, subprocess, sys
-
-doc = json.load(open(".code-scopes"))
-files = subprocess.run(
-    ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
-    capture_output=True, text=True).stdout.split()
-
-def matches(path, glob):
-    rx = re.escape(glob).replace(r"\*\*", "\x00").replace(r"\*", "[^/]*")
-    return re.fullmatch(rx.replace("\x00", ".*"), path) is not None
-
-for glob in (g for s in doc["scopes"] for g in s["paths"]):
-    if not any(matches(f, glob) for f in files):
-        print("DEAD GLOB:", glob)
-
-for path in sys.argv[1:]:
-    hit = next((s["name"] for s in doc["scopes"]
-                if any(matches(path, g) for g in s["paths"])), "NO MATCH")
-    print(hit, path)
-```
-
-```bash
-python3 "$SCRATCHPAD/scopes.py" $(git diff --cached --name-only)
-```
-
-A dead glob for a path this commit is adding is expected, not a finding:
-`.code-scopes` itself reports dead until its first commit lands.
-
-Write a full rewrite with python3, never with a chain of `sed`:
+NEVER hand-edit the JSON, NEVER chain `sed`, NEVER resolve a glob by eye.
+Rewrite the whole file with python3:
 
 ```bash
 python3 - <<'PY'
@@ -151,3 +71,41 @@ doc = {
 pathlib.Path(".code-scopes").write_text(json.dumps(doc, indent=2) + "\n")
 PY
 ```
+
+## Generate
+
+Trigger: `.code-scopes` missing, or `version` not `1`.
+
+| Step | Action |
+|---|---|
+| 1 | Take the inventory. |
+| 2 | IF a structure guide exists (`CLAUDE.md`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`), read its structure section; prefer the names it uses. |
+| 3 | One scope per top-level directory, EXCEPT: split a directory into sub-scopes where it holds independently deployed or independently reviewed units (`services/*`, `packages/*`); collapse sibling directories no commit would isolate into one scope with one family glob (40 `plugin-*` directories → `plugin-*/**`), exceptions in earlier scopes. |
+| 4 | Target 15–25 entries. A vocabulary too large to hold is worse than a coarse one. |
+| 5 | One scope covers the repository's own tooling and configuration and holds `.code-scopes` in its `paths`. Name it `claude` IF `.claude/` exists, else `meta`. |
+| 6 | Attach each documentation path to the scope of the area it describes. |
+| 7 | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--stamp`. |
+
+`git log` is NEVER a source. Scope names in past commits carry no authority;
+the `[PREFLIGHT]` ban on reading history stays absolute.
+
+## Validate
+
+Trigger: the file exists, `version` is `1`, the gate printed `STALE`, or
+`[SCOPES]` Resolve sent you here.
+
+| Finding | Action |
+|---|---|
+| `DEAD GLOB` not explained by a path this commit adds | Remove the glob. Remove the scope when no glob is left. |
+| A top-level inventory entry gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate steps 3 and 4. |
+| An independently deployed unit below a scoped directory has no more specific scope | Add a scope for it, ordered before its parent. |
+| ≥3 paths in one scope share a prefix and would all match one family glob | Replace them with the family glob. Move every other path that glob would capture into an earlier scope first, then confirm with `scopes.py` over the inventory that no path changed scope. |
+| A `description` holds a count or an enumeration of members | Rewrite it without them. |
+| A scope name no longer matches the directory it covers after a rename | Rename the scope; keep the paths correct. |
+| An entry sorts after a less specific entry that shadows it | Re-sort most-specific-first. |
+| The JSON holds a `last_validated` field | Remove it; the stamp file replaced it. |
+| Nothing above fired | The vocabulary is current. |
+
+Rewrite `.code-scopes` only when a finding fired. Always finish with
+`--stamp`. Every add, removal and rename goes to `[OUTPUT]` item 4. Any change
+to the file lands as the `[SCOPES]` chore commit, alone.

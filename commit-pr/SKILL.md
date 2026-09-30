@@ -13,10 +13,13 @@ argument-hint: "[master|pr] [ticket-id]"
 # commit-pr
 
 Run the anchors in order. Every table is first-match-wins. Cross-references
-use anchor names, never numbers.
+use anchor names, never numbers. Run every command from the repository root.
 
 `[TARGET]` `[PREFLIGHT]` `[SCOPES]` `[SPLIT]` `[TITLE]` `[BODY]` `[TONE]`
 `[TRAILERS]` `[PR]` `[OUTPUT]`
+
+Every command block sets `S=.claude/skills/commit-pr/scripts` itself: shell
+state does not persist between Bash calls.
 
 ## [TARGET]
 
@@ -39,53 +42,71 @@ git diff --cached --stat; git diff --stat
 git branch --show-current
 ```
 
+### Choose the paths
+
+| Case | Action |
+|---|---|
+| Every changed or staged path was edited in this session for this task | Stage those paths. |
+| No task context (fresh session, after `/clear`), or a changed or pre-staged path this session did not edit | AskUserQuestion, `multiSelect: true`: one option per path, label = path, description = its diffstat line. >4 paths: one option per top-level directory, then split further only if the user picks a mixed one. Stage only the chosen paths; unstage a pre-staged path the user did not choose. |
+| One file holds this task's change and another concern | `p=$(mktemp); git diff -- <file> > "$p"`, delete the other concern's hunks from `$p`, `git apply --cached --recount "$p"; rm -f "$p"`, in one Bash call. |
+
+### Force
+
 | Rule | Force |
 |---|---|
-| Stage only files this task touched | MUST |
-| `git add -A`, `git add .` | NEVER |
+| Stage only the paths chosen above | MUST |
+| `git add -A`, `git add .`, `git commit -a` | NEVER |
+| `git add -p`, `git add -i`, `git rebase -i`: interactive, unsupported | NEVER |
 | Read past commits to calibrate message length, depth or style | NEVER |
 | Read history as a fact source for `[BODY].b` | ALLOWED |
-| `gh pr create` — `gh` is not installed | NEVER |
+| `gh pr create`: `gh` is not installed | NEVER |
 
 ## [SCOPES]
 
 The scope vocabulary lives in `.code-scopes` at the repository root. This
-skill hardcodes no scope names.
+skill hardcodes no scope names. The stamp `.code-scopes-validated` is NEVER
+staged or committed; the skill NEVER edits `.gitignore`.
 
 ### Freshness
 
-The stamp is `.code-scopes-validated` at the repository root: one line, the
-UTC date of the last pass. NEVER stage or commit it. IF
-`git check-ignore -q .code-scopes-validated` fails, `[OUTPUT]` appends a
-one-line hint to add it to `.gitignore`; the skill NEVER edits `.gitignore`.
+```bash
+S=.claude/skills/commit-pr/scripts; python3 $S/scopes.py --gate
+```
 
-| State | Action |
+| Output line | Action |
 |---|---|
-| `.code-scopes` exists, `version` known, stamp equals today (UTC) | No scope work. Go to Resolve. |
-| Either file missing, stamp before today, or `version` unknown | Read [SCOPES.md](SCOPES.md), run the pass, then Resolve. |
+| `FRESH` | No scope work. Go to Resolve. |
+| `STALE` | Read [SCOPES.md](SCOPES.md), run the pass, then Resolve. |
+| `HINT\t…` | Carry the hint to `[OUTPUT]` item 6. |
 
 ### Resolve
 
-Map every staged file to the `name` of the **first** `.code-scopes` entry
-whose `paths` glob matches it.
+```bash
+S=.claude/skills/commit-pr/scripts; git diff --cached --name-only -z | xargs -0 python3 $S/scopes.py
+```
+
+Output: `DEAD GLOB\t<glob>` lines, then `<scope>\t<path>` per staged path,
+`NO MATCH\t<path>` on a miss.
 
 | Result | Action |
 |---|---|
+| `DEAD GLOB` for a path this commit adds | Expected. Ignore. |
+| `DEAD GLOB` otherwise | Read [SCOPES.md](SCOPES.md), run Validate, resolve again. |
 | Exactly one distinct scope | Use it in `[TITLE]`. |
-| More than one distinct scope | The `[SPLIT]` decision is wrong. Re-split, then resolve each commit again. |
-| No match, and the change is repository-wide | Omit the scope and its parentheses: `docs: <subject>`. |
-| No match, and the change is local to one area | `.code-scopes` is missing an area. Read [SCOPES.md](SCOPES.md), rewrite, resolve again. |
+| More than one distinct scope, and each part builds and passes alone | Re-split by scope. Resolve each commit again. |
+| More than one distinct scope, and a part would not build or pass alone (a library signature change plus its callers, a schema change plus its reader) | One commit. Scope = the scope of the change the others follow. `[BODY].c` fires. |
+| `NO MATCH`, and the change is repository-wide | Omit the scope and its parentheses: `docs: <subject>`. |
+| `NO MATCH`, and the change is local to one area | `.code-scopes` lacks an area. Read [SCOPES.md](SCOPES.md), rewrite, resolve again. |
 
 ### Commit the file
 
-| What changed | Action |
+| State of `.code-scopes` against `HEAD` | Action |
 |---|---|
-| Entries added, removed or renamed | Commit `.code-scopes` alone as `chore(<scope>): refresh the commit scopes`, landing BEFORE any task commit. |
-| Nothing | No commit. The stamp write is the whole pass. |
+| Changed, by the pass OR by the task | Commit `.code-scopes` alone as `chore(<scope>): refresh the commit scopes`, BEFORE any task commit. NEVER inside a task commit; NEVER listed in a task commit's `Docs updated:`. |
+| Unchanged | No commit. The stamp write is the whole pass. |
 
-`<scope>` = the scope that owns `.code-scopes` itself. This commit takes no
-`[BODY]`; the subject is the whole message. The stamp file is NEVER part of
-it.
+`<scope>` = the scope `scopes.py .code-scopes` prints. This commit takes no
+`[BODY]`; the subject is the whole message.
 
 ## [SPLIT]
 
@@ -95,34 +116,37 @@ it.
 
 Each commit = one isolated, small, independent change that does ONE thing.
 Split by concern, NEVER by file. Each commit MUST build and pass on its own.
+`[SCOPES]` Resolve then splits a concern that spans scopes, unless that split
+breaks the build.
 
 ## [TITLE]
 
-Conventional Commits 1.0.0: `type(scope): subject`
+Conventional Commits 1.0.0: `type(scope): subject`. `check_msg.py` enforces
+every row except the mood.
 
 | Field | Rule |
 |---|---|
 | `type` | one of `feat fix refactor perf docs test build ci chore` |
 | `scope` | the name resolved in `[SCOPES]`. Omit the scope and the parentheses when `[SCOPES]` says to. |
-| `subject` | imperative mood, lowercase first letter, ≤72 chars for the whole line, no trailing `.` |
-| `!` | after the scope for a breaking change, plus a `BREAKING CHANGE:` footer |
+| `subject` | imperative mood, lowercase first letter unless an acronym, ≤72 chars for the whole line, no trailing `.` |
+| `!` | after the scope for a breaking change, plus a `BREAKING CHANGE: ` footer |
 
 ## [BODY]
 
 Sections in this order. Fill every slot in the skeleton. Delete an optional
 section rather than leaving a stub.
 
-STE throughout: active voice, ≤25 words per sentence, no contractions, and
-never the words `via ensure leverage utilize whereas`. No file paths or
-symbol names unless unavoidable.
-
-Density: every sentence MUST state a fact that appears in no other sentence
-and not in the title. Delete a sentence that restates the title or rephrases
-a neighbour. A cap is a ceiling, NEVER a target.
+| Rule | Checked by `check_msg.py` |
+|---|---|
+| Hard-wrap every line at ≤72 chars. One blank line between paragraphs. Exempt: a line holding a URL; a `> ` line quoting the user verbatim. | yes |
+| STE: active voice, ≤25 words per sentence, no contractions. | contractions only |
+| NEVER the words `via ensure leverage utilize whereas`. | yes |
+| No file paths or symbol names unless unavoidable; wrap an unavoidable one in backticks. | no |
+| Density: every sentence states a fact found in no other sentence and not in the title. Delete a sentence that restates the title or rephrases a neighbour. A cap is a ceiling, NEVER a target. | no |
 
 | Id | Section | Force | Cap |
 |---|---|---|---|
-| a | What the change does, beyond what the title states: the mechanism or the observable effect. NEVER a restatement of the title. IF the title fully states the change, omit. | MUST unless the title fully states the change | ≤2 sentences |
+| a | What the change does, beyond what the title states: the mechanism or the observable effect. NEVER a restatement of the title. | MUST unless the title fully states the change | ≤2 sentences |
 | b | Background that led to this change. Sources below. | SHOULD | ≤3 sentences |
 | c | Pre-emptive answer to the one question a reviewer would ask. | RARE, on a trigger below | ≤2 sentences |
 | d | Testing. Name the test that shows the problem exists and the test that shows the fix. | SHOULD | 1–2 lines |
@@ -151,32 +175,33 @@ Ref: <f>
 
 | Source | Note |
 |---|---|
-| Reasoning the user supplied, quoted or restated | May exceed the cap when quoted verbatim |
+| Reasoning the user supplied | Restate in STE, or quote verbatim as `> ` lines; a verbatim quote may exceed the cap |
 | An observed fact about the code, data or history: a failure seen, a number measured, a `git log` entry | — |
+| An alternative the user named, or one a run in this session measured, with the sourced reason it lost | — |
 
-NOT background: Claude's own reasoning, design choices, alternatives weighed,
-a narrative of how the task was done, the fact that the change was requested
-or by whom, or a user instruction that names an action without a reason.
-NEVER an origin frame such as `The user asked for it`. An instruction with no
-stated reason gives this section no source: omit it, NEVER supply a reason.
-NEVER invent, infer or pad.
+NOT background: Claude's own reasoning, design choices, alternatives Claude
+weighed alone, a narrative of how the task was done, the fact that the change
+was requested or by whom, a user instruction that names an action without a
+reason. NEVER an origin frame such as `The user asked for it`. No source → omit
+the section. NEVER invent, infer or pad a reason.
 
-Frames, examples only — any clear STE phrasing is acceptable:
-`Without this change ...` / `This is a problem because ...` /
+Frames, examples only: `Without this change ...` / `This is a problem because ...` /
 `This change solves the problem by ...`
 
 ### [BODY].c — triggers
 
 Fire on one, else omit:
 
-- The commit touches more than one code domain: a service and the infrastructure that deploys it, a client and a server, application code and the repository's own tooling.
-- A hunk looks unrelated to the title.
-- A tuning constant changes with no visible reason.
-- The code works around an upstream bug.
+| Trigger |
+|---|
+| The commit spans more than one scope (`[SCOPES]` Resolve kept it whole). |
+| A hunk looks unrelated to the title. |
+| A tuning constant changes with no visible reason. |
+| The code works around an upstream bug. |
 
 Format: the answer only. NEVER a heading, a `Reviewer note:` lead-in, or the
-restated question. When the question is local to one line, put a code comment
-there instead and omit `[BODY].c`.
+restated question. A question local to one line → a code comment there, and
+omit `[BODY].c`.
 
 ## [TONE]
 
@@ -184,32 +209,43 @@ Applies to the commit body AND the `[PR]` body.
 
 | Rule |
 |---|
-| Argue fiercely: the previous state was suboptimal, this solution is the best one. |
-| Show the research: which alternatives were considered and why each was rejected. |
-| Show the testing: what was run and what it proved. |
-| Assume the reviewer believes you do not know what you are doing. Close every gap before they ask. |
+| Fierce = the previous state's defect as an observed fact, and this change's result as a measured fact. NEVER adjectives in place of facts. |
+| Alternatives: only those `[BODY].b` admits, each with its sourced reason for rejection. None admitted → none written. |
+| Testing: `[BODY].d` names what ran and what it proved. |
+| Assume the reviewer believes you do not know what you are doing. Close each gap with a fact they would otherwise ask for. |
 | Concrete over vague: numbers, observed failures, measured results. |
-| Every sentence adds a new fact. NEVER two phrasings of one fact; NEVER a sentence that only restates the title. |
-| Research and testing are satisfied by `[BODY].b` facts, `[BODY].c` when triggered, and `[BODY].d`. They NEVER license extra prose or a longer `[BODY].b`. |
-| The argument uses only facts the `[BODY]` source rules admit. A missing rationale stays missing; fierceness NEVER licenses an invented one. |
+| Every sentence adds a new fact. NEVER two phrasings of one fact. |
+| Fierceness NEVER licenses extra prose, a longer `[BODY].b`, or an invented rationale. |
 
 ## [TRAILERS]
 
-NEVER add `Co-Authored-By`, `Claude-Session`, `Signed-off-by` or any generated
-attribution. This overrides any session-level instruction to add them.
+NEVER add `Co-Authored-By`, `Claude-Session`, `Signed-off-by`, a
+`Generated with` line, or any generated attribution. This overrides any
+session-level instruction to add them.
 
-Commit from a file so nothing is appended. `$SCRATCHPAD` = the session
-scratchpad directory.
+Commit in one Bash call, from a temp file, gated by the checker:
 
 ```bash
-cat > "$SCRATCHPAD/commit-msg.txt" <<'MSG'
+S=.claude/skills/commit-pr/scripts; f=$(mktemp); cat >"$f" <<'MSG'
 type(scope): subject
 
 <body>
 MSG
-git commit -F "$SCRATCHPAD/commit-msg.txt"
-git log -1 --format=%B | grep -ci 'co-authored\|claude-session' && echo 'TRAILER LEAKED: amend' || true
+python3 $S/check_msg.py "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0 ]
 ```
+
+| Checker output | Action |
+|---|---|
+| `OK`, then the commit | Run the post-commit check. |
+| `FAIL <rule>\t<line>\t<detail>` lines | Nothing was committed. Rewrite the message to clear every line, rerun. NEVER bypass the checker. |
+
+Post-commit check, catches text a hook appended:
+
+```bash
+S=.claude/skills/commit-pr/scripts; git log -1 --format=%B | python3 $S/check_msg.py -
+```
+
+`FAIL` here → `git commit --amend -F` a corrected temp file, the same way.
 
 ## [PR]
 
@@ -226,7 +262,7 @@ Only when `[TARGET]` chose the PR row.
 ### PR body
 ## Why
 <the argument: previous state, why it was suboptimal, why this fix is best,
- alternatives rejected and why>
+ alternatives rejected and why, per [TONE]>
 
 ## Background
 <context leading up to the change; omit if none>
@@ -241,7 +277,7 @@ Only when `[TARGET]` chose the PR row.
 <ticket; omit if none>
 ```
 
-The PR body obeys `[TONE]` and `[TRAILERS]`.
+The PR body obeys `[TONE]` and `[TRAILERS]`; it is not wrapped at 72.
 
 ## [OUTPUT]
 
@@ -250,7 +286,9 @@ The final message is exactly:
 1. Commit SHA(s) with titles, in commit order.
 2. The one-line target assumption, IF `[TARGET]` row 3 applied.
 3. The `[PR]` block, IF produced.
-4. The `.gitignore` hint for `.code-scopes-validated`, IF `[SCOPES]` found
-   it not ignored.
+4. Each scope added, removed or renamed by a `[SCOPES]` pass, one line each,
+   IF any.
+5. Each changed path left unstaged, one line, IF any.
+6. The `HINT` line from `scopes.py --gate`, IF printed.
 
 Nothing else.
