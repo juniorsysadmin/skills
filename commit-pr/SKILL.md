@@ -7,13 +7,14 @@ description: >-
   Use when the user asks to commit, write a commit message, open or draft a
   PR, or push a branch.
 license: Apache-2.0
-argument-hint: "[master|pr] [ticket-id]"
+argument-hint: "[here|pr] [ticket-id]"
 ---
 
 # commit-pr
 
-Run the anchors in order. Every table is first-match-wins. Cross-references
-use anchor names, never numbers. Run every command from the repository root.
+Run the anchors in order. Every decision table is first-match-wins.
+Cross-references use anchor names and row keys (`[OUTPUT].hint`), never
+numbers. Run every command from the repository root.
 
 `[TARGET]` `[PREFLIGHT]` `[SCOPES]` `[SPLIT]` `[TITLE]` `[BODY]` `[TONE]`
 `[TRAILERS]` `[PR]` `[OUTPUT]`
@@ -25,14 +26,15 @@ state does not persist between Bash calls.
 
 Read `$ARGUMENTS` and the user's words.
 
-| Signal | Action |
-|---|---|
-| arg `master` or `main`; or user says "to master", "on master", "commit here", "straight to master" | Commit on the current branch. No new branch, no push, no PR. |
-| arg `pr`; or user says "PR", "pull request", "push", "branch" | Branch off `master` if on it, commit, push, print the `[PR]` block. |
-| neither | Commit on the current branch, no PR. `[OUTPUT]` states this assumption in one line. |
+| Key | Signal | Action |
+|---|---|---|
+| `here` | arg `here`, `main`, `master` or the default branch name; or user says "commit here", "on this branch", "straight to <default branch>" | Commit on the current branch. No new branch, no push, no PR. |
+| `pr` | arg `pr`; or user says "PR", "pull request", "push", "branch" | Branch off the default branch if on it, commit, push, print the `[PR]` block. |
+| `default` | neither | Commit on the current branch, no PR. `[OUTPUT].assumed` states this assumption in one line. |
 
-Any other `$ARGUMENTS` token = the ticket reference for `[BODY].f`. The repo
-tracker is `.scratch/<feature>/issues/NN-<slug>.md`. NEVER GitHub Issues.
+Any other `$ARGUMENTS` token = the ticket reference for `[BODY].f`, written as
+given. A tracker that the repository's agent instructions name (`CLAUDE.md`,
+`AGENTS.md`) decides the reference form; none named → the token verbatim.
 
 ## [PREFLIGHT]
 
@@ -40,7 +42,11 @@ tracker is `.scratch/<feature>/issues/NN-<slug>.md`. NEVER GitHub Issues.
 git status --porcelain
 git diff --cached --stat; git diff --stat
 git branch --show-current
+git symbolic-ref --quiet --short refs/remotes/origin/HEAD || git config init.defaultBranch
 ```
+
+The last line prints the default branch (`origin/<name>` or `<name>`). No
+output → the default branch is whichever of `main` and `master` exists.
 
 ### Choose the paths
 
@@ -59,7 +65,7 @@ git branch --show-current
 | `git add -p`, `git add -i`, `git rebase -i`: interactive, unsupported | NEVER |
 | Read past commits to calibrate message length, depth or style | NEVER |
 | Read history as a fact source for `[BODY].b` | ALLOWED |
-| `gh pr create`: `gh` is not installed | NEVER |
+| `gh pr create` or any other call that opens the PR: the user opens it from the `[PR]` block | NEVER |
 
 ## [SCOPES]
 
@@ -77,7 +83,7 @@ S=.claude/skills/commit-pr/scripts; python3 $S/scopes.py --gate
 |---|---|
 | `FRESH` | No scope work. Go to Resolve. |
 | `STALE` | Read [SCOPES.md](SCOPES.md), run the pass, then Resolve. |
-| `HINT\t…` | Carry the hint to `[OUTPUT]` item 6. |
+| `HINT\t…` | Carry the hint to `[OUTPUT].hint`. |
 
 ### Resolve
 
@@ -142,6 +148,7 @@ section rather than leaving a stub.
 | STE: active voice, ≤25 words per sentence, no contractions. | contractions only |
 | NEVER the words `via ensure leverage utilize whereas`. | yes |
 | No file paths or symbol names unless unavoidable; wrap an unavoidable one in backticks. | no |
+| Tally: name a set by its rule (`every public endpoint`), its members, or its exception (`all but two`); `the first`, `the last`, `the only` stand. NEVER a count of things (`34 tests`, `six modules`) or a rank (`the fourth`, `a second run`). A unit or a measurement is no tally: `6 dp`, `300 s`, `≤72 chars`, a date, a measured before and after. | tally and rank words |
 | Density: every sentence states a fact found in no other sentence and not in the title. Delete a sentence that restates the title or rephrases a neighbour. A cap is a ceiling, NEVER a target. | no |
 
 | Id | Section | Force | Cap |
@@ -213,7 +220,7 @@ Applies to the commit body AND the `[PR]` body.
 | Alternatives: only those `[BODY].b` admits, each with its sourced reason for rejection. None admitted → none written. |
 | Testing: `[BODY].d` names what ran and what it proved. |
 | Assume the reviewer believes you do not know what you are doing. Close each gap with a fact they would otherwise ask for. |
-| Concrete over vague: numbers, observed failures, measured results. |
+| Concrete over vague: observed failures and measured results (`40 s` to `3 s`). NEVER a tally of tests, files or commits (`[BODY]` Tally). |
 | Every sentence adds a new fact. NEVER two phrasings of one fact. |
 | Fierceness NEVER licenses extra prose, a longer `[BODY].b`, or an invented rationale. |
 
@@ -249,11 +256,11 @@ S=.claude/skills/commit-pr/scripts; git log -1 --format=%B | python3 $S/check_ms
 
 ## [PR]
 
-Only when `[TARGET]` chose the PR row.
+Only when `[TARGET]` chose `pr`.
 
-1. On `master`? `git switch -c <type>/<scope>-<short-slug>` first.
+1. On the default branch? `git switch -c <type>/<scope>-<short-slug>` first.
 2. `git push -u origin "$(git branch --show-current)"`.
-3. Print this block for the user to paste into GitHub. `gh` is absent.
+3. Print this block for the user to paste into the hosting service's PR form.
 
 ```
 ### PR title
@@ -281,14 +288,15 @@ The PR body obeys `[TONE]` and `[TRAILERS]`; it is not wrapped at 72.
 
 ## [OUTPUT]
 
-The final message is exactly:
+The final message is exactly these items, in this order:
 
-1. Commit SHA(s) with titles, in commit order.
-2. The one-line target assumption, IF `[TARGET]` row 3 applied.
-3. The `[PR]` block, IF produced.
-4. Each scope added, removed or renamed by a `[SCOPES]` pass, one line each,
-   IF any.
-5. Each changed path left unstaged, one line, IF any.
-6. The `HINT` line from `scopes.py --gate`, IF printed.
+| Key | Item |
+|---|---|
+| `commits` | Commit SHA(s) with titles, in commit order. |
+| `assumed` | The one-line target assumption, IF `[TARGET]` chose `default`. |
+| `pr` | The `[PR]` block, IF produced. |
+| `scopes` | Each scope added, removed or renamed by a `[SCOPES]` pass, one line each, IF any. |
+| `unstaged` | Each changed path left unstaged, one line, IF any. |
+| `hint` | The `HINT` line from `scopes.py --gate`, IF printed. |
 
 Nothing else.

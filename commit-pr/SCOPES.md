@@ -38,7 +38,7 @@ Read only when `[SCOPES]` in [SKILL.md](SKILL.md) sends you here: `scopes.py
 | Constraint | Reason |
 |---|---|
 | `services/checkout/**` precedes `services/**` | else nothing resolves to `checkout` |
-| A family of siblings in one scope = ONE family glob (`rust-*/**`), never one glob per member | a new member then needs no edit and no chore commit |
+| A family of siblings in one scope = ONE family glob (`plugin-*/**`), never one glob per member | a new member then needs no edit and no chore commit |
 | Every sibling that a family glob would capture but that belongs elsewhere sits in an EARLIER scope | first match wins; the exception must be seen first |
 | A scope owns its documentation through `paths` (`docs/services/inventory.md` → `inventory`) | NEVER a `docs` scope: it yields `docs(docs)` |
 | `indent=2`, one path per line | the chore commit's diff shows one line per changed path |
@@ -78,13 +78,13 @@ Trigger: `.code-scopes` missing, or `version` not `1`.
 
 | Step | Action |
 |---|---|
-| 1 | Take the inventory. |
-| 2 | IF a structure guide exists (`CLAUDE.md`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`), read its structure section; prefer the names it uses. |
-| 3 | One scope per top-level directory, EXCEPT: split a directory into sub-scopes where it holds independently deployed or independently reviewed units (`services/*`, `packages/*`); collapse sibling directories no commit would isolate into one scope with one family glob (40 `plugin-*` directories → `plugin-*/**`), exceptions in earlier scopes. |
-| 4 | Target 15–25 entries. A vocabulary too large to hold is worse than a coarse one. |
-| 5 | One scope covers the repository's own tooling and configuration and holds `.code-scopes` in its `paths`. Name it `claude` IF `.claude/` exists, else `meta`. |
-| 6 | Attach each documentation path to the scope of the area it describes. |
-| 7 | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--stamp`. |
+| `inventory` | Take the inventory. |
+| `guide` | IF a structure guide exists (`CLAUDE.md`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`), read its structure section; prefer the names it uses. |
+| `split` | One scope per top-level directory, EXCEPT: split a directory into sub-scopes where it holds independently deployed or independently reviewed units (`services/*`, `packages/*`); collapse sibling directories no commit would isolate into one scope with one family glob (a family of `plugin-*` directories → `plugin-*/**`), exceptions in earlier scopes. |
+| `size` | Target 15–25 entries. A vocabulary too large to hold is worse than a coarse one. |
+| `tooling` | One scope covers the repository's own tooling and configuration and holds `.code-scopes` in its `paths`. Name it `claude` IF `.claude/` exists, else `meta`. |
+| `docs` | Attach each documentation path to the scope of the area it describes. |
+| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--stamp`. |
 
 `git log` is NEVER a source. Scope names in past commits carry no authority;
 the `[PREFLIGHT]` ban on reading history stays absolute.
@@ -97,7 +97,7 @@ Trigger: the file exists, `version` is `1`, the gate printed `STALE`, or
 | Finding | Action |
 |---|---|
 | `DEAD GLOB` not explained by a path this commit adds | Remove the glob. Remove the scope when no glob is left. |
-| A top-level inventory entry gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate steps 3 and 4. |
+| A top-level inventory entry gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate `split` and `size`. |
 | An independently deployed unit below a scoped directory has no more specific scope | Add a scope for it, ordered before its parent. |
 | ≥3 paths in one scope share a prefix and would all match one family glob | Replace them with the family glob. Move every other path that glob would capture into an earlier scope first, then confirm with `scopes.py` over the inventory that no path changed scope. |
 | A `description` holds a count or an enumeration of members | Rewrite it without them. |
@@ -107,5 +107,5 @@ Trigger: the file exists, `version` is `1`, the gate printed `STALE`, or
 | Nothing above fired | The vocabulary is current. |
 
 Rewrite `.code-scopes` only when a finding fired. Always finish with
-`--stamp`. Every add, removal and rename goes to `[OUTPUT]` item 4. Any change
+`--stamp`. Every add, removal and rename goes to `[OUTPUT].scopes`. Any change
 to the file lands as the `[SCOPES]` chore commit, alone.

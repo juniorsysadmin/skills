@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # commit-pr message gate (see ../SKILL.md [TITLE] [BODY] [TRAILERS]): check_msg.py <file|->
 # Prints FAIL <rule>\t<line no>\t<detail> per breach and exits 1, else prints OK and exits 0.
+# tally/rank = SKILL.md [BODY] tally rule: a count of things or an ordinal other than first/last;
+# units and measurements pass.
 # Line 1 = title. Exempt from wrap/STE checks: lines starting "> " (verbatim user quote) and lines holding "://".
 import re, sys
 
@@ -9,6 +11,10 @@ TITLE = re.compile(rf"^({TYPES})(\([a-z0-9][a-z0-9._-]*\))?(!)?: (\S.*)$")
 TRAILER = re.compile(r"^\s*(co-authored-by|claude-session|signed-off-by)\s*:|generated with \[?claude|noreply@anthropic\.com", re.I)
 BANNED = re.compile(r"\b(via|ensure[sd]?|ensuring|leverag\w*|utili[sz]\w*|whereas)\b", re.I)
 CONTRACTION = re.compile(r"\b\w+(n['’]t|['’](re|ve|ll|d|m))\b|\b(it|that|there|what|here|who|he|she|let)['’]s\b", re.I)
+NUM = r"(\d[\d,]*|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozens?|hundreds?|(twen|thir|for|fif|six|seven|eigh|nine)ty(-[a-z]+)?)"
+TALLY = re.compile(rf"(?<!but )(?<!except )\b{NUM} ([a-z-]+ )?(tests?|files?|commits?|functions?|methods?|lines?|cases?|crates?|modules?|packages?|services?|components?|dependencies|rows?|checks?|routes?|endpoints?|options?|items?|paths?|scripts?|fixtures?|steps?|changes?|hunks?|bugs?|errors?|warnings?|sections?|tables?|columns?|utilities|bins?|docs?|pages?)\b", re.I)
+RANK = re.compile(r"\b(second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|[a-z]+teenth|(twen|thir|for|fif|six|seven|eigh|nine)tieth|\d+(st|nd|rd|th))\b", re.I)
+UNIT = re.compile(r"(\d|\b(one|per|each|half|split|a fraction of a))\s*-?\s*$", re.I)
 CODE = re.compile(r"`[^`]*`")
 WRAP = 72
 
@@ -50,6 +56,12 @@ for n, line in enumerate(lines, 1):
         fail("ste-word", n, w.group(0))
     for c in CONTRACTION.finditer(prose):
         fail("contraction", n, c.group(0))
+    for t in TALLY.finditer(prose):
+        fail("tally", n, f"{t.group(0)!r}: name the set by its rule, its members or its exception")
+    for r in RANK.finditer(prose):
+        if r.group(1).lower() == "second" and UNIT.search(prose[: r.start()]) or "percentile" in prose[r.end() : r.end() + 12].lower():
+            continue
+        fail("rank", n, f"{r.group(0)!r}: only first, last or only may rank")
 
 print("\n".join(fails) if fails else "OK")
 sys.exit(1 if fails else 0)
