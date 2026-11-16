@@ -90,6 +90,7 @@ S="${CLAUDE_SKILL_DIR}/scripts"; python3 "$S/scopes.py" --gate
 | `FRESH` | No scope work. Go to Resolve. |
 | `STALE` | Read [SCOPES.md](SCOPES.md), run the pass, then Resolve. |
 | `HINT\t…` | Carry the hint to `[OUTPUT].hint`. |
+| `ERROR\t…` | Not inside a git repository. Stop and tell the user. |
 
 ### Resolve
 

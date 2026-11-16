@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 # commit-pr scope tool (see ../SKILL.md [SCOPES], ../SCOPES.md); runs from any cwd inside the repo.
+# Outside a repository: prints ERROR\tnot a git repository, exits 2.
 # --gate          -> FRESH|STALE, then HINT line if the stamp is not gitignored
 # --stamp         -> writes today's UTC date to .code-scopes-validated
 # [paths...]      -> DEAD GLOB\t<glob> lines, then <scope>\t<path> per path (NO MATCH\t<path> on a miss)
 import datetime, json, os, re, subprocess, sys
 
-root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True).stdout.strip()
-os.chdir(root)
+top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+if top.returncode or not top.stdout.strip():
+    print("ERROR\tnot a git repository")
+    sys.exit(2)
+os.chdir(top.stdout.strip())
 args = sys.argv[1:]
 today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
