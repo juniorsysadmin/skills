@@ -35,8 +35,12 @@ resolve them against the current page's directory to follow them. Only
 ## Searching
 
 ```bash
-.claude/skills/aws-docs/scripts/aws_docs search "S3 access point policy" --limit 3
+"${CLAUDE_SKILL_DIR}/scripts/aws_docs" search "S3 access point policy" --limit 3
 ```
+
+The command path is absolute and works from any directory. A harness that
+does not expand the placeholder leaves a `${...}` token in the path: replace
+the token with the directory that holds this SKILL.md.
 
 `scripts/aws_docs` is a wrapper that auto-builds `aws_docs.bin` from the
 committed Go source on first use (and whenever the source changes). It needs
@@ -46,7 +50,7 @@ Result links end in `.html` — apply the `.md` rewrite above before fetching.
 End-to-end:
 
 ```bash
-.claude/skills/aws-docs/scripts/aws_docs search "CloudFront function size limit" --limit 3
+"${CLAUDE_SKILL_DIR}/scripts/aws_docs" search "CloudFront function size limit" --limit 3
 # → 1. Quotas on CloudFront Functions
 #      https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-function-restrictions.html
 # then WebFetch …/cloudfront-function-restrictions.md
