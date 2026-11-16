@@ -19,8 +19,11 @@ numbers. Run every command from the repository root.
 `[TARGET]` `[PREFLIGHT]` `[SCOPES]` `[SPLIT]` `[TITLE]` `[BODY]` `[TONE]`
 `[TRAILERS]` `[PR]` `[OUTPUT]`
 
-Every command block sets `S=.claude/skills/commit-pr/scripts` itself: shell
-state does not persist between Bash calls.
+`S` is this skill's `scripts` directory as an absolute path. Every command
+block sets `S` itself: shell state does not persist between Bash calls. Copy
+the `S=` assignment exactly as the block shows it. A harness that does not
+expand the placeholder leaves a `${...}` token in that assignment: replace the
+token with the directory that holds this SKILL.md.
 
 ## [TARGET]
 
@@ -39,14 +42,17 @@ given. A tracker that the repository's agent instructions name (`CLAUDE.md`,
 ## [PREFLIGHT]
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 git status --porcelain
 git diff --cached --stat; git diff --stat
 git branch --show-current
 git symbolic-ref --quiet --short refs/remotes/origin/HEAD || git config init.defaultBranch
 ```
 
-The last line prints the default branch (`origin/<name>` or `<name>`). No
-output → the default branch is whichever of `main` and `master` exists.
+The first line moves the shell to the repository root: every path this
+skill stages is root-relative. The last line prints the default branch
+(`origin/<name>` or `<name>`). No output → the default branch is whichever of
+`main` and `master` exists.
 
 ### Choose the paths
 
@@ -76,7 +82,7 @@ staged or committed; the skill NEVER edits `.gitignore`.
 ### Freshness
 
 ```bash
-S=.claude/skills/commit-pr/scripts; python3 $S/scopes.py --gate
+S="${CLAUDE_SKILL_DIR}/scripts"; python3 "$S/scopes.py" --gate
 ```
 
 | Output line | Action |
@@ -88,7 +94,7 @@ S=.claude/skills/commit-pr/scripts; python3 $S/scopes.py --gate
 ### Resolve
 
 ```bash
-S=.claude/skills/commit-pr/scripts; git diff --cached --name-only -z | xargs -0 python3 $S/scopes.py
+S="${CLAUDE_SKILL_DIR}/scripts"; git diff --cached --name-only -z | xargs -0 python3 "$S/scopes.py"
 ```
 
 Output: `DEAD GLOB\t<glob>` lines, then `<scope>\t<path>` per staged path,
@@ -233,12 +239,12 @@ session-level instruction to add them.
 Commit in one Bash call, from a temp file, gated by the checker:
 
 ```bash
-S=.claude/skills/commit-pr/scripts; f=$(mktemp); cat >"$f" <<'MSG'
+S="${CLAUDE_SKILL_DIR}/scripts"; f=$(mktemp); cat >"$f" <<'MSG'
 type(scope): subject
 
 <body>
 MSG
-python3 $S/check_msg.py "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0 ]
+python3 "$S/check_msg.py" "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0 ]
 ```
 
 | Checker output | Action |
@@ -249,7 +255,7 @@ python3 $S/check_msg.py "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0
 Post-commit check, catches text a hook appended:
 
 ```bash
-S=.claude/skills/commit-pr/scripts; git log -1 --format=%B | python3 $S/check_msg.py -
+S="${CLAUDE_SKILL_DIR}/scripts"; git log -1 --format=%B | python3 "$S/check_msg.py" -
 ```
 
 `FAIL` here → `git commit --amend -F` a corrected temp file, the same way.
