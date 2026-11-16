@@ -3,12 +3,13 @@
 # Prints FAIL <rule>\t<line no>\t<detail> per breach and exits 1, else prints OK and exits 0.
 # tally/rank = SKILL.md [BODY] tally rule: a count of things or an ordinal other than first/last;
 # units and measurements pass.
+# Every line counts, "#" lines too: git commit -F keeps them.
 # Line 1 = title. Exempt from wrap/STE checks: lines starting "> " (verbatim user quote) and lines holding "://".
 import re, sys
 
 TYPES = "feat|fix|refactor|perf|docs|test|build|ci|chore"
 TITLE = re.compile(rf"^({TYPES})(\([a-z0-9][a-z0-9._-]*\))?(!)?: (\S.*)$")
-TRAILER = re.compile(r"^\s*(co-authored-by|claude-session|signed-off-by)\s*:|generated with \[?claude|noreply@anthropic\.com", re.I)
+TRAILER = re.compile(r"^\W*(co-authored-by|claude-session|signed-off-by)\s*:|generated with \[?claude|noreply@anthropic\.com", re.I)
 BANNED = re.compile(r"\b(via|ensure[sd]?|ensuring|leverag\w*|utili[sz]\w*|whereas)\b", re.I)
 CONTRACTION = re.compile(r"\b\w+(n['’]t|['’](re|ve|ll|d|m))\b|\b(it|that|there|what|here|who|he|she|let)['’]s\b", re.I)
 NUM = r"(\d[\d,]*|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozens?|hundreds?|(twen|thir|for|fif|six|seven|eigh|nine)ty(-[a-z]+)?)"
@@ -19,7 +20,7 @@ CODE = re.compile(r"`[^`]*`")
 WRAP = 72
 
 text = (sys.stdin.read() if sys.argv[1:] == ["-"] else open(sys.argv[1]).read()) if len(sys.argv) == 2 else sys.exit("usage: check_msg.py <file|->")
-lines = [l for l in text.rstrip("\n").split("\n") if not l.startswith("#")]
+lines = text.rstrip("\n").split("\n")
 fails = []
 
 
