@@ -33,7 +33,8 @@ cache = {}
 
 def rx(glob):
     if glob not in cache:
-        r = re.escape(glob).replace(r"\*\*", "\0").replace(r"\*", "[^/]*").replace("\0", ".*")
+        # "**/" = zero or more directories, "**" = anything, "*" = within one segment
+        r = re.escape(glob).replace(r"\*\*/", "\1").replace(r"\*\*", "\0").replace(r"\*", "[^/]*").replace("\0", ".*").replace("\1", "(?:.*/)?")
         cache[glob] = re.compile(r)
     return cache[glob]
 
