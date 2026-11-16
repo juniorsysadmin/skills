@@ -25,9 +25,15 @@ Binding rules, in force for the whole session:
 ## Command
 
 ```bash
-scripts=.claude/skills/aws-pricing/scripts
-$scripts/aws_pricing <subcommand> ...
+scripts="${CLAUDE_SKILL_DIR}/scripts"
+"$scripts/aws_pricing" <subcommand> ...
 ```
+
+`scripts` is this skill's `scripts` directory as an absolute path. Shell state
+does not persist between Bash calls: start every call with the `scripts=`
+assignment, exactly as shown. A harness that does not expand the placeholder
+leaves a `${...}` token in that assignment: replace the token with the
+directory that holds this SKILL.md.
 
 The wrapper auto-builds the Go binary from `aws_pricing.go` on first use and
 after source changes (Go toolchain required; first build fetches
@@ -42,10 +48,10 @@ maps any `--region` to a Price List API endpoint region itself; the ambient
 Run in order. Every `--filter` here is a case-insensitive regex.
 
 ```bash
-$scripts/aws_pricing service-codes --filter dynamo          # 1 → AmazonDynamoDB
-$scripts/aws_pricing service-attributes AmazonDynamoDB      # 2 → group, regionCode, ...
-$scripts/aws_pricing attribute-values AmazonDynamoDB group --filter 'group=units'  # 3 → DDB-WriteUnits, ...
-$scripts/aws_pricing pricing AmazonDynamoDB --region ap-southeast-2 \
+"$scripts/aws_pricing" service-codes --filter dynamo          # 1 → AmazonDynamoDB
+"$scripts/aws_pricing" service-attributes AmazonDynamoDB      # 2 → group, regionCode, ...
+"$scripts/aws_pricing" attribute-values AmazonDynamoDB group --filter 'group=units'  # 3 → DDB-WriteUnits, ...
+"$scripts/aws_pricing" pricing AmazonDynamoDB --region ap-southeast-2 \
   --filter group=DDB-WriteUnits --terms OnDemand            # 4 → the price
 ```
 
@@ -89,8 +95,8 @@ Output is compact JSON: `{"products":[...],"next_token":"..."}`.
 For whole-service dumps or historical prices too big for `pricing`:
 
 ```bash
-$scripts/aws_pricing price-list-urls AmazonRDS ap-southeast-2
-$scripts/aws_pricing price-list-urls AmazonEC2 us-east-1 --effective-date 2025-01-01T00:00:00Z
+"$scripts/aws_pricing" price-list-urls AmazonRDS ap-southeast-2
+"$scripts/aws_pricing" price-list-urls AmazonEC2 us-east-1 --effective-date 2025-01-01T00:00:00Z
 ```
 
 Returns `{"csv": url, "json": url}` download URLs. The CSV holds 5 metadata
