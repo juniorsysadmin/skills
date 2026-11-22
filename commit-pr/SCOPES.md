@@ -80,7 +80,7 @@ Trigger: `.code-scopes` missing, or `version` not `1`.
 | `size` | At most 25 entries. A vocabulary too large to hold is worse than a coarse one. |
 | `tooling` | One scope covers the repository's own tooling and configuration and holds `.code-scopes` in its `paths`. Name it `claude` IF `.claude/` exists, else `meta`. |
 | `docs` | Attach each documentation path to the scope of the area it describes. |
-| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--stamp`, then Commit the file. |
+| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files and the stamp `.code-scopes-validated`. Then `--stamp`, then Commit the file. |
 
 `git log` is NEVER a source: scope names in past commits carry no authority.
 
@@ -92,7 +92,7 @@ Trigger: the file exists, `version` is `1`, the gate printed `STALE`, or
 | Finding | Action |
 |---|---|
 | `DEAD GLOB` not explained by a path this commit adds | Remove the glob. Remove the scope when no glob is left. |
-| A top-level inventory entry gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate `split` and `size`. |
+| A top-level inventory entry other than the stamp `.code-scopes-validated` gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate `split` and `size`. |
 | An independently deployed unit below a scoped directory has no more specific scope | Add a scope for it, ordered before its parent. |
 | ≥3 paths in one scope share a prefix and would all match one family glob | Replace them with the family glob. Move every other path that glob would capture into an earlier scope first, then confirm with `scopes.py` over the inventory that no path changed scope. |
 | A `description` holds a count or an enumeration of members | Rewrite it without them. |
