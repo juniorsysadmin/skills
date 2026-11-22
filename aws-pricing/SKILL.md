@@ -1,12 +1,9 @@
 ---
 name: aws-pricing
 description: >-
-  Query live AWS pricing from the AWS Price List API. Use for ANY question
-  about AWS service costs, prices, rates, or estimates — EC2 instance pricing,
-  S3 storage classes, RDS, Lambda, DynamoDB, data transfer, cross-region
-  price comparisons, and every other AWS service. Never answer an AWS pricing
-  question from training data: prices change constantly and recalled numbers
-  are wrong. Always fetch the current price with this skill first.
+  Live AWS prices from the Price List API. Use for any AWS cost question: a
+  price, a comparison across regions or options, a cost estimate or report.
+  Fetch before answering: recalled prices are stale.
 license: Apache-2.0
 ---
 
@@ -35,12 +32,10 @@ assignment, exactly as shown. A harness that does not expand the placeholder
 leaves a `${...}` token in that assignment: replace the token with the
 directory that holds this SKILL.md.
 
-The wrapper auto-builds the Go binary from `aws_pricing.go` on first use and
-after source changes (Go toolchain required; first build fetches
-aws-sdk-go-v2, then builds take seconds). Needs AWS credentials
-(`AWS_PROFILE` respected). On a credential error the binary prints a hint —
-ask the user to reauthenticate (`aws login` / `aws sso login`). The binary
-maps any `--region` to a Price List API endpoint region itself; the ambient
+The first call builds the binary with the Go toolchain and is slow. The
+command needs AWS credentials (`AWS_PROFILE` respected): on a credential
+error, ask the user to reauthenticate (`aws login` / `aws sso login`).
+`--region` alone picks the Price List API endpoint; the ambient
 `AWS_DEFAULT_REGION` never matters.
 
 ## Discovery chain
@@ -69,9 +64,7 @@ equal step-3 values exactly (`--filter-contains` is the substring exception).
 
 All repeatable. `--region <code>` (repeatable) auto-adds a `regionCode`
 filter — always it, never the `location` attribute. AWS caps an
-ANY_OF/NONE_OF value list at 1024 characters. Other flags: `--terms`,
-`--attrs`, `--exclude-free`, `--max-results` (1–100), `--next-token`,
-`--max-chars`.
+ANY_OF/NONE_OF value list at 1024 characters.
 
 ## Output control
 
@@ -87,8 +80,9 @@ Output is compact JSON: `{"products":[...],"next_token":"..."}`.
   hints — narrow the query and keep the cap.
 - Extract just the numbers:
   `| jq '.products[].terms.OnDemand[].priceDimensions[] | {unit, pricePerUnit, description}'`.
-- A `next_token` in the response means more pages; paginate with
-  `--next-token` only when the question needs every product.
+- A `next_token` in the response means more pages (`--max-results`, 1–100,
+  sets the page size); paginate with `--next-token` only when the question
+  needs every product.
 
 ## Bulk price files
 

@@ -116,7 +116,8 @@ func makeClient(ctx context.Context, requestedRegion string) *pricing.Client {
 }
 
 // parseArgs runs fs.Parse iteratively so positionals may appear before,
-// between, or after flags (matching the old clap behaviour).
+// between, or after flags; Go's flag package alone stops at the first
+// non-flag argument.
 func parseArgs(fs *flag.FlagSet, args []string) []string {
 	var positionals []string
 	rest := args

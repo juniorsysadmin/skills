@@ -15,12 +15,12 @@ its stated bar.
 4. **Exclusions** — what the estimate leaves out (data transfer, support
    plans, taxes, free tier if unused, cross-service costs), each with one
    clause on why.
-5. **Unit prices** — a table of every unit price used, each fetched this
-   session and cited as unit + currency + region + term type. Unit prices
-   appear before any arithmetic that uses them.
+5. **Unit prices** — a table of every unit price used, each quoted per the
+   binding rules in SKILL.md. Unit prices appear before any arithmetic that
+   uses them.
 6. **Calculation** — the arithmetic from unit prices and assumptions to the
-   total, shown so the reader can recompute it. Flag any tiered price
-   (`beginRange != "0"`) and apply the tier boundaries explicitly.
+   total, shown so the reader can recompute it. Flag any usage tier
+   (binding rule 3) and apply its boundaries explicitly.
 7. **Free tier** — what the service's free tier covers and whether it changes
    the total; "no free tier" is a valid entry.
 8. **Cost vs usage** — a table of the total at 3–5 usage levels bracketing
