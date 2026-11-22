@@ -2,8 +2,10 @@
 
 Only when `[TARGET]` in [SKILL.md](SKILL.md) chose `pr`.
 
-1. Before the first `[COMMIT]`: on the default branch?
-   `git switch -c <type>/<scope>-<short-slug>` first.
+1. Before the first commit of the run, the `[SCOPES]` chore commit
+   included: on the default branch?
+   `git switch -c <type>/<scope>-<short-slug>` first. `<type>` and `<scope>`
+   are those of the first task commit.
 2. After the last `[COMMIT]`: `git push -u origin "$(git branch --show-current)"`.
 3. Print this block for the user to paste into the hosting service's PR form.
 

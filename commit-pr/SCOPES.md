@@ -111,5 +111,6 @@ Rewrite `.code-scopes` only when a finding fired. Always finish with
 | Unchanged | No commit. The stamp write is the whole pass. |
 
 `<scope>` = the scope `scopes.py .code-scopes` prints. This commit takes no
-`[BODY]`; the subject is the whole message. Every scope added, removed or
+`[BODY]`; the subject is the whole message, and it goes through the
+`[COMMIT]` gate like every other commit. Every scope added, removed or
 renamed goes to `[OUTPUT].scopes`.

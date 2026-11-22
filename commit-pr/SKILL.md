@@ -30,7 +30,7 @@ Read `$ARGUMENTS` and the user's words.
 | Key | Signal | Action |
 |---|---|---|
 | `here` | arg `here`, `main`, `master` or the default branch name; or user says "commit here", "on this branch", "straight to <default branch>" | Commit on the current branch. No new branch, no push, no PR. |
-| `pr` | arg `pr`; or user says "PR", "pull request", "push", "branch" | Read [PR.md](PR.md) now: it branches before the first `[COMMIT]`, then pushes and prints the PR block after the last. |
+| `pr` | arg `pr`; or user says "PR", "pull request", "push", "branch" | Read [PR.md](PR.md) now: it branches before the first commit of the run, then pushes and prints the PR block after the last. |
 | `default` | neither | Commit on the current branch, no PR. `[OUTPUT].assumed` states this assumption in one line. |
 
 Any other `$ARGUMENTS` token = the ticket reference for `[BODY].f`, written as
@@ -87,6 +87,11 @@ cases below:
 | Every changed or staged path was edited in this session for this task | Stage those paths. |
 | No task context (fresh session, after `/clear`), or a changed or pre-staged path this session did not edit | AskUserQuestion, `multiSelect: true`: one option per path, label = path, description = its diffstat line. >4 paths: one option per top-level directory, then split further only if the user picks a mixed one. Stage only the chosen paths; unstage a pre-staged path the user did not choose. |
 | One file holds this task's change and another concern | `p=$(mktemp); git diff -- <file> > "$p"`, delete the other concern's hunks from `$p`, `git apply --cached --recount "$p"; rm -f "$p"`, in one Bash call. |
+
+No AskUserQuestion tool → ask the same question as a numbered list in plain
+text and end the turn. No human to answer → stage only the paths this session
+edited and leave the rest for `[OUTPUT].unstaged`; none edited → commit
+nothing and say so.
 
 ### Force
 
@@ -271,7 +276,7 @@ The final message is exactly these items, in this order:
 | `assumed` | The one-line target assumption, IF `[TARGET]` chose `default`. |
 | `pr` | The PR block from [PR.md](PR.md), IF produced. |
 | `scopes` | Each scope added, removed or renamed by a `[SCOPES]` pass, one line each, IF any. |
-| `unstaged` | Each changed path left unstaged, one line, IF any. |
+| `unstaged` | Each changed path left unstaged, the `[SCOPES]` stamp included while `git status` shows it, one line, IF any. |
 | `hint` | The `HINT` line from `scopes.py --gate`, IF printed. |
 
 Nothing else.
