@@ -5,7 +5,7 @@ block in [SKILL.md](SKILL.md) into every Bash call that uses `$S`.
 
 ## Schema
 
-`.code-scopes` is JSON at the repository root, tracked by git.
+`.code-scopes` is JSON at the repository root.
 
 ```json
 {
@@ -107,6 +107,7 @@ Rewrite `.code-scopes` only when a finding fired. Always finish with
 
 | State of `.code-scopes` against `HEAD` | Action |
 |---|---|
+| The run is `LOCAL` (`[SCOPES]` in [SKILL.md](SKILL.md)) | No commit. Leave the file unstaged. |
 | Changed, by the pass OR by the task | Commit `.code-scopes` alone as `chore(<scope>): refresh the commit scopes`, BEFORE any task commit. NEVER inside a task commit; NEVER listed in a task commit's `Docs updated:`. |
 | Unchanged | No commit. The stamp write is the whole pass. |
 

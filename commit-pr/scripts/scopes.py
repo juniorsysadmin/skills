@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # commit-pr scope tool (see ../SKILL.md [SCOPES], ../SCOPES.md); runs from any cwd inside the repo.
 # Outside a repository: prints ERROR\tnot a git repository, exits 2.
-# --gate          -> FRESH|STALE, then HINT line if the stamp is not gitignored
+# --gate          -> FRESH|STALE, then LOCAL if .code-scopes exists untracked, HINT if it is missing,
+#                    HINT if the stamp is not gitignored
 # --stamp         -> writes today's UTC date to .code-scopes-validated
 # [paths...]      -> DEAD GLOB\t<glob> lines, then <scope>\t<path> per path (NO MATCH\t<path> on a miss)
 import datetime, json, os, re, subprocess, sys
@@ -25,6 +26,10 @@ if args == ["--gate"]:
     except (OSError, ValueError):
         fresh = False
     print("FRESH" if fresh else "STALE")
+    if not os.path.exists(".code-scopes"):
+        print("HINT\t.code-scopes is new and committed by default; the local-scopes argument keeps it uncommitted (later: git rm --cached .code-scopes)")
+    elif subprocess.run(["git", "ls-files", "--error-unmatch", ".code-scopes"], capture_output=True).returncode:
+        print("LOCAL\t.code-scopes is untracked: no chore commit")
     if subprocess.run(["git", "check-ignore", "-q", ".code-scopes-validated"]).returncode:
         print("HINT\tadd .code-scopes-validated to .gitignore")
     sys.exit(0)

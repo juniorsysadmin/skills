@@ -5,7 +5,7 @@ description: >-
   branch with a PR title and body. Use when the user asks to commit, write a
   commit message, draft a PR, or push a branch.
 license: Apache-2.0
-argument-hint: "[here|pr] [ticket-id]"
+argument-hint: "[here|pr] [local-scopes] [ticket-id]"
 ---
 
 # commit-pr
@@ -33,8 +33,8 @@ Read `$ARGUMENTS` and the user's words.
 | `pr` | arg `pr`; or user says "PR", "pull request", "push", "branch" | Read [PR.md](PR.md) now: it branches before the first commit of the run, then pushes and prints the PR block after the last. |
 | `default` | neither | Commit on the current branch, no PR. `[OUTPUT].assumed` states this assumption in one line. |
 
-Any other `$ARGUMENTS` token = the ticket reference for `[BODY].f`, written as
-given. A tracker that the repository's agent instructions name (`CLAUDE.md`,
+The token `local-scopes` makes the run `LOCAL` (`[SCOPES]`). Any other
+`$ARGUMENTS` token = the ticket reference for `[BODY].f`, written as given. A tracker that the repository's agent instructions name (`CLAUDE.md`,
 `AGENTS.md`) decides the reference form; none named → the token verbatim.
 
 ## [PREFLIGHT]
@@ -78,7 +78,8 @@ cases below:
 
 - `.code-scopes-validated`, the `[SCOPES]` stamp, stays untracked: no
   staging, no AskUserQuestion option.
-- `.code-scopes`, when it differs from `HEAD`: read
+- `.code-scopes` on a `LOCAL` run: the same.
+- `.code-scopes` on any other run, when it differs from `HEAD`: read
   [SCOPES.md](SCOPES.md), Commit the file. It lands alone, before any task
   commit.
 
@@ -103,7 +104,10 @@ nothing and say so.
 
 ## [SCOPES]
 
-The scope vocabulary lives in `.code-scopes` at the repository root.
+The scope vocabulary lives in `.code-scopes` at the repository root, committed
+by default. A run is `LOCAL` when the gate prints `LOCAL` or the arguments
+hold `local-scopes`: `.code-scopes` is then left unstaged and takes no chore
+commit.
 
 ### Freshness
 
@@ -117,6 +121,7 @@ S="${CLAUDE_SKILL_DIR}/scripts"; python3 "$S/scopes.py" --gate
 |---|---|
 | `FRESH` | No scope work. |
 | `STALE` | Read [SCOPES.md](SCOPES.md) and run the pass. |
+| `LOCAL\t…` | The run is `LOCAL`. |
 | `HINT\t…` | Carry the hint to `[OUTPUT].hint`. The user edits `.gitignore`; this skill leaves it as it is. |
 | `ERROR\t…` | Not inside a git repository. Stop and tell the user. |
 
@@ -277,6 +282,6 @@ The final message is exactly these items, in this order:
 | `pr` | The PR block from [PR.md](PR.md), IF produced. |
 | `scopes` | Each scope added, removed or renamed by a `[SCOPES]` pass, one line each, IF any. |
 | `unstaged` | Each changed path left unstaged, the `[SCOPES]` stamp included while `git status` shows it, one line, IF any. |
-| `hint` | The `HINT` line from `scopes.py --gate`, IF printed. |
+| `hint` | Each `HINT` line from `scopes.py --gate`, IF printed. |
 
 Nothing else.
