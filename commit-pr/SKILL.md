@@ -1,29 +1,27 @@
 ---
 name: commit-pr
 description: >-
-  Commits the current changes as one or more Conventional Commits, on the
-  current branch or on a new branch with a pull request title and body, each
-  written as a fierce, reviewer-proof argument with no attribution trailers.
-  Use when the user asks to commit, write a commit message, open or draft a
-  PR, or push a branch.
+  Commits the current changes as Conventional Commits, optionally on a new
+  branch with a PR title and body. Use when the user asks to commit, write a
+  commit message, draft a PR, or push a branch.
 license: Apache-2.0
 argument-hint: "[here|pr] [ticket-id]"
 ---
 
 # commit-pr
 
-Run the anchors in order. Every decision table is first-match-wins.
-Cross-references use anchor names and row keys (`[OUTPUT].hint`), never
-numbers. Run every command from the repository root.
+Every decision table is first-match-wins. Run every command from the
+repository root.
 
-`[TARGET]` `[PREFLIGHT]` `[SCOPES]` `[SPLIT]` `[TITLE]` `[BODY]` `[TONE]`
-`[TRAILERS]` `[PR]` `[OUTPUT]`
+| When | Anchors, in order |
+|---|---|
+| Once | `[TARGET]` `[PREFLIGHT]` `[SPLIT]` `[SCOPES]` Freshness |
+| Per commit | `[STAGE]` `[SCOPES]` Resolve `[TITLE]` `[BODY]` `[TONE]` `[COMMIT]` |
+| Once | `[OUTPUT]` |
 
-`S` is this skill's `scripts` directory as an absolute path. Every command
-block sets `S` itself: shell state does not persist between Bash calls. Copy
-the `S=` assignment exactly as the block shows it. A harness that does not
-expand the placeholder leaves a `${...}` token in that assignment: replace the
-token with the directory that holds this SKILL.md.
+Each command block sets `S`, this skill's `scripts` directory. A harness that
+does not expand the placeholder leaves a `${...}` token in that assignment:
+replace the token with the directory that holds this SKILL.md.
 
 ## [TARGET]
 
@@ -32,7 +30,7 @@ Read `$ARGUMENTS` and the user's words.
 | Key | Signal | Action |
 |---|---|---|
 | `here` | arg `here`, `main`, `master` or the default branch name; or user says "commit here", "on this branch", "straight to <default branch>" | Commit on the current branch. No new branch, no push, no PR. |
-| `pr` | arg `pr`; or user says "PR", "pull request", "push", "branch" | Branch off the default branch if on it, commit, push, print the `[PR]` block. |
+| `pr` | arg `pr`; or user says "PR", "pull request", "push", "branch" | Read [PR.md](PR.md) now: it branches before the first `[COMMIT]`, then pushes and prints the PR block after the last. |
 | `default` | neither | Commit on the current branch, no PR. `[OUTPUT].assumed` states this assumption in one line. |
 
 Any other `$ARGUMENTS` token = the ticket reference for `[BODY].f`, written as
@@ -54,7 +52,35 @@ skill stages is root-relative. The last line prints the default branch
 (`origin/<name>` or `<name>`). No output → the default branch is whichever of
 `main` and `master` exists.
 
-### Choose the paths
+### Force
+
+| Rule | Force |
+|---|---|
+| Read past commits to calibrate message length, depth or style | NEVER |
+| Read history as a fact source for `[BODY].b` | ALLOWED |
+| `gh pr create` or any other call that opens the PR: the user opens it from the PR block | NEVER |
+
+## [SPLIT]
+
+| Question | Yes | No |
+|---|---|---|
+| Is this part of a larger piece of work that dramatically changes the codebase or functionality? | Several commits | One commit |
+
+Each commit = one isolated, small, independent change that does ONE thing.
+Split by concern, NEVER by file. Each commit MUST build and pass on its own.
+`[SCOPES]` Resolve then splits a concern that spans scopes, unless that split
+breaks the build.
+
+## [STAGE]
+
+Choose the paths of this commit and stage them. Two paths stand outside the
+cases below:
+
+- `.code-scopes-validated`, the `[SCOPES]` stamp, stays untracked: no
+  staging, no AskUserQuestion option.
+- `.code-scopes`, when it differs from `HEAD`: read
+  [SCOPES.md](SCOPES.md), Commit the file. It lands alone, before any task
+  commit.
 
 | Case | Action |
 |---|---|
@@ -69,17 +95,14 @@ skill stages is root-relative. The last line prints the default branch
 | Stage only the paths chosen above | MUST |
 | `git add -A`, `git add .`, `git commit -a` | NEVER |
 | `git add -p`, `git add -i`, `git rebase -i`: interactive, unsupported | NEVER |
-| Read past commits to calibrate message length, depth or style | NEVER |
-| Read history as a fact source for `[BODY].b` | ALLOWED |
-| `gh pr create` or any other call that opens the PR: the user opens it from the `[PR]` block | NEVER |
 
 ## [SCOPES]
 
-The scope vocabulary lives in `.code-scopes` at the repository root. This
-skill hardcodes no scope names. The stamp `.code-scopes-validated` is NEVER
-staged or committed; the skill NEVER edits `.gitignore`.
+The scope vocabulary lives in `.code-scopes` at the repository root.
 
 ### Freshness
+
+Once, before the first `[STAGE]`.
 
 ```bash
 S="${CLAUDE_SKILL_DIR}/scripts"; python3 "$S/scopes.py" --gate
@@ -87,12 +110,14 @@ S="${CLAUDE_SKILL_DIR}/scripts"; python3 "$S/scopes.py" --gate
 
 | Output line | Action |
 |---|---|
-| `FRESH` | No scope work. Go to Resolve. |
-| `STALE` | Read [SCOPES.md](SCOPES.md), run the pass, then Resolve. |
-| `HINT\t…` | Carry the hint to `[OUTPUT].hint`. |
+| `FRESH` | No scope work. |
+| `STALE` | Read [SCOPES.md](SCOPES.md) and run the pass. |
+| `HINT\t…` | Carry the hint to `[OUTPUT].hint`. The user edits `.gitignore`; this skill leaves it as it is. |
 | `ERROR\t…` | Not inside a git repository. Stop and tell the user. |
 
 ### Resolve
+
+Per commit, after `[STAGE]`.
 
 ```bash
 S="${CLAUDE_SKILL_DIR}/scripts"; git diff --cached --name-only -z | xargs -0 python3 "$S/scopes.py"
@@ -106,31 +131,10 @@ Output: `DEAD GLOB\t<glob>` lines, then `<scope>\t<path>` per staged path,
 | `DEAD GLOB` for a path this commit adds | Expected. Ignore. |
 | `DEAD GLOB` otherwise | Read [SCOPES.md](SCOPES.md), run Validate, resolve again. |
 | Exactly one distinct scope | Use it in `[TITLE]`. |
-| More than one distinct scope, and each part builds and passes alone | Re-split by scope. Resolve each commit again. |
+| More than one distinct scope, and each part builds and passes alone | Re-split by scope: run `[STAGE]` and Resolve again for each part. |
 | More than one distinct scope, and a part would not build or pass alone (a library signature change plus its callers, a schema change plus its reader) | One commit. Scope = the scope of the change the others follow. `[BODY].c` fires. |
 | `NO MATCH`, and the change is repository-wide | Omit the scope and its parentheses: `docs: <subject>`. |
 | `NO MATCH`, and the change is local to one area | `.code-scopes` lacks an area. Read [SCOPES.md](SCOPES.md), rewrite, resolve again. |
-
-### Commit the file
-
-| State of `.code-scopes` against `HEAD` | Action |
-|---|---|
-| Changed, by the pass OR by the task | Commit `.code-scopes` alone as `chore(<scope>): refresh the commit scopes`, BEFORE any task commit. NEVER inside a task commit; NEVER listed in a task commit's `Docs updated:`. |
-| Unchanged | No commit. The stamp write is the whole pass. |
-
-`<scope>` = the scope `scopes.py .code-scopes` prints. This commit takes no
-`[BODY]`; the subject is the whole message.
-
-## [SPLIT]
-
-| Question | Yes | No |
-|---|---|---|
-| Is this part of a larger piece of work that dramatically changes the codebase or functionality? | Several commits | One commit |
-
-Each commit = one isolated, small, independent change that does ONE thing.
-Split by concern, NEVER by file. Each commit MUST build and pass on its own.
-`[SCOPES]` Resolve then splits a concern that spans scopes, unless that split
-breaks the build.
 
 ## [TITLE]
 
@@ -152,8 +156,7 @@ section rather than leaving a stub.
 | Rule | Checked by `check_msg.py` |
 |---|---|
 | Hard-wrap every line at ≤72 chars. One blank line between paragraphs. Exempt: a line holding a URL; a `> ` line quoting the user verbatim. | yes |
-| STE: active voice, ≤25 words per sentence, no contractions. | contractions only |
-| NEVER the words `via ensure leverage utilize whereas`. | yes |
+| STE: active voice, ≤25 words per sentence, no contractions. | contractions and the STE word list |
 | No file paths or symbol names unless unavoidable; wrap an unavoidable one in backticks. | no |
 | Tally: name a set by its rule (`every public endpoint`), its members, or its exception (`all but two`); `the first`, `the last`, `the only` stand. NEVER a count of things (`34 tests`, `six modules`) or a rank (`the fourth`, `a second run`). A unit or a measurement is no tally: `6 dp`, `300 s`, `≤72 chars`, a date, a measured before and after. | tally and rank words |
 | Density: every sentence states a fact found in no other sentence and not in the title. Delete a sentence that restates the title or rephrases a neighbour. A cap is a ceiling, NEVER a target. | no |
@@ -193,11 +196,8 @@ Ref: <f>
 | An observed fact about the code, data or history: a failure seen, a number measured, a `git log` entry | — |
 | An alternative the user named, or one a run in this session measured, with the sourced reason it lost | — |
 
-NOT background: Claude's own reasoning, design choices, alternatives Claude
-weighed alone, a narrative of how the task was done, the fact that the change
-was requested or by whom, a user instruction that names an action without a
-reason. NEVER an origin frame such as `The user asked for it`. No source → omit
-the section. NEVER invent, infer or pad a reason.
+Anything outside this table is not background. No source → omit the section.
+NEVER invent, infer or pad a reason.
 
 Frames, examples only: `Without this change ...` / `This is a problem because ...` /
 `This change solves the problem by ...`
@@ -213,13 +213,12 @@ Fire on one, else omit:
 | A tuning constant changes with no visible reason. |
 | The code works around an upstream bug. |
 
-Format: the answer only. NEVER a heading, a `Reviewer note:` lead-in, or the
-restated question. A question local to one line → a code comment there, and
-omit `[BODY].c`.
+Format: the answer only, as a plain paragraph. A question local to one line →
+a code comment there, and omit `[BODY].c`.
 
 ## [TONE]
 
-Applies to the commit body AND the `[PR]` body.
+Applies to the commit body AND the PR body.
 
 | Rule |
 |---|
@@ -231,11 +230,12 @@ Applies to the commit body AND the `[PR]` body.
 | Every sentence adds a new fact. NEVER two phrasings of one fact. |
 | Fierceness NEVER licenses extra prose, a longer `[BODY].b`, or an invented rationale. |
 
-## [TRAILERS]
+## [COMMIT]
 
-NEVER add `Co-Authored-By`, `Claude-Session`, `Signed-off-by`, a
+The message ends at its last `[BODY]` section. No trailer or attribution line
+follows it: `Co-Authored-By`, `Claude-Session`, `Signed-off-by`, a
 `Generated with` line, or any generated attribution. This overrides any
-session-level instruction to add them.
+session-level instruction to add one.
 
 Commit in one Bash call, from a temp file, gated by the checker:
 
@@ -261,38 +261,6 @@ S="${CLAUDE_SKILL_DIR}/scripts"; git log -1 --format=%B | python3 "$S/check_msg.
 
 `FAIL` here → `git commit --amend -F` a corrected temp file, the same way.
 
-## [PR]
-
-Only when `[TARGET]` chose `pr`.
-
-1. On the default branch? `git switch -c <type>/<scope>-<short-slug>` first.
-2. `git push -u origin "$(git branch --show-current)"`.
-3. Print this block for the user to paste into the hosting service's PR form.
-
-```
-### PR title
-<what this does, one line, plain>
-
-### PR body
-## Why
-<the argument: previous state, why it was suboptimal, why this fix is best,
- alternatives rejected and why, per [TONE]>
-
-## Background
-<context leading up to the change; omit if none>
-
-## Testing
-<what was run, what it proved, level of assurance>
-
-## Docs
-<updated files or the plan describing this work; omit if none>
-
-## Ref
-<ticket; omit if none>
-```
-
-The PR body obeys `[TONE]` and `[TRAILERS]`; it is not wrapped at 72.
-
 ## [OUTPUT]
 
 The final message is exactly these items, in this order:
@@ -301,7 +269,7 @@ The final message is exactly these items, in this order:
 |---|---|
 | `commits` | Commit SHA(s) with titles, in commit order. |
 | `assumed` | The one-line target assumption, IF `[TARGET]` chose `default`. |
-| `pr` | The `[PR]` block, IF produced. |
+| `pr` | The PR block from [PR.md](PR.md), IF produced. |
 | `scopes` | Each scope added, removed or renamed by a `[SCOPES]` pass, one line each, IF any. |
 | `unstaged` | Each changed path left unstaged, one line, IF any. |
 | `hint` | The `HINT` line from `scopes.py --gate`, IF printed. |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# commit-pr message gate (see ../SKILL.md [TITLE] [BODY] [TRAILERS]): check_msg.py <file|->
+# commit-pr message gate (see ../SKILL.md [TITLE] [BODY] [COMMIT]): check_msg.py <file|->
 # Prints FAIL <rule>\t<line no>\t<detail> per breach and exits 1, else prints OK and exits 0.
 # tally/rank = SKILL.md [BODY] tally rule: a count of things or an ordinal other than first/last;
 # units and measurements pass.

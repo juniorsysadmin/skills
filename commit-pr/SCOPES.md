@@ -1,8 +1,5 @@
 # SCOPES
 
-Read only when `[SCOPES]` in [SKILL.md](SKILL.md) sends you here: `scopes.py
---gate` printed `STALE`, a `DEAD GLOB` fired, or a staged path gave `NO MATCH`.
-
 `S` = this skill's `scripts` directory: copy the `S=` assignment from a command
 block in [SKILL.md](SKILL.md) into every Bash call that uses `$S`.
 
@@ -44,9 +41,6 @@ block in [SKILL.md](SKILL.md) into every Bash call that uses `$S`.
 | A scope owns its documentation through `paths` (`docs/services/inventory.md` → `inventory`) | NEVER a `docs` scope: it yields `docs(docs)` |
 | `indent=2`, one path per line | the chore commit's diff shows one line per changed path |
 
-The stamp `.code-scopes-validated` (one line, UTC `YYYY-MM-DD`) is untracked,
-expected in `git status`, NEVER staged or committed.
-
 ## Commands
 
 | Action | Command |
@@ -83,13 +77,12 @@ Trigger: `.code-scopes` missing, or `version` not `1`.
 | `inventory` | Take the inventory. |
 | `guide` | IF a structure guide exists (`CLAUDE.md`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`), read its structure section; prefer the names it uses. |
 | `split` | One scope per top-level directory, EXCEPT: split a directory into sub-scopes where it holds independently deployed or independently reviewed units (`services/*`, `packages/*`); collapse sibling directories no commit would isolate into one scope with one family glob (a family of `plugin-*` directories → `plugin-*/**`), exceptions in earlier scopes. |
-| `size` | Target 15–25 entries. A vocabulary too large to hold is worse than a coarse one. |
+| `size` | At most 25 entries. A vocabulary too large to hold is worse than a coarse one. |
 | `tooling` | One scope covers the repository's own tooling and configuration and holds `.code-scopes` in its `paths`. Name it `claude` IF `.claude/` exists, else `meta`. |
 | `docs` | Attach each documentation path to the scope of the area it describes. |
-| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--stamp`. |
+| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--stamp`, then Commit the file. |
 
-`git log` is NEVER a source. Scope names in past commits carry no authority;
-the `[PREFLIGHT]` ban on reading history stays absolute.
+`git log` is NEVER a source: scope names in past commits carry no authority.
 
 ## Validate
 
@@ -105,9 +98,18 @@ Trigger: the file exists, `version` is `1`, the gate printed `STALE`, or
 | A `description` holds a count or an enumeration of members | Rewrite it without them. |
 | A scope name no longer matches the directory it covers after a rename | Rename the scope; keep the paths correct. |
 | An entry sorts after a less specific entry that shadows it | Re-sort most-specific-first. |
-| The JSON holds a `last_validated` field | Remove it; the stamp file replaced it. |
 | Nothing above fired | The vocabulary is current. |
 
 Rewrite `.code-scopes` only when a finding fired. Always finish with
-`--stamp`. Every add, removal and rename goes to `[OUTPUT].scopes`. Any change
-to the file lands as the `[SCOPES]` chore commit, alone.
+`--stamp`, then Commit the file.
+
+## Commit the file
+
+| State of `.code-scopes` against `HEAD` | Action |
+|---|---|
+| Changed, by the pass OR by the task | Commit `.code-scopes` alone as `chore(<scope>): refresh the commit scopes`, BEFORE any task commit. NEVER inside a task commit; NEVER listed in a task commit's `Docs updated:`. |
+| Unchanged | No commit. The stamp write is the whole pass. |
+
+`<scope>` = the scope `scopes.py .code-scopes` prints. This commit takes no
+`[BODY]`; the subject is the whole message. Every scope added, removed or
+renamed goes to `[OUTPUT].scopes`.
