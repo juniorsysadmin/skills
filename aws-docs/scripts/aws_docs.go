@@ -241,7 +241,7 @@ func runSearch(args []string) int {
 
 	// Go's flag package stops at the first non-flag argument, so parse
 	// iteratively to allow the phrase to appear before or between flags
-	// (matching argparse, e.g. `search "..." --limit 5`).
+	// (e.g. `search "..." --limit 5`).
 	var positionals []string
 	rest := args
 	for len(rest) > 0 {
