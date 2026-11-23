@@ -168,7 +168,7 @@ section rather than leaving a stub.
 | Hard-wrap every line at ≤72 chars. One blank line between paragraphs. Exempt: a line holding a URL; a `> ` line quoting the user verbatim. | yes |
 | STE: active voice, ≤25 words per sentence, no contractions. | contractions and the STE word list |
 | No file paths or symbol names unless unavoidable; wrap an unavoidable one in backticks. | no |
-| Tally: name a set by its rule (`every public endpoint`), its members, or its exception (`all but two`); `the first`, `the last`, `the only` stand. NEVER a count of things (`34 tests`, `six modules`) or a rank (`the fourth`, `a second run`). A unit or a measurement is no tally: `6 dp`, `300 s`, `≤72 chars`, a date, a measured before and after. | tally and rank words |
+| Tally: name a set by its rule (`every public endpoint`), its members, or its exception (`all but two`); `the first`, `the last`, `the only` stand. NEVER a count of things (`34 tests`, `six modules`) or a rank (`the fourth`, `a second run`). A calendar rank fails too (`the third Friday`): write `a Friday of the review month`, `the Monday after the review`. A unit or a measurement is no tally: `6 dp`, `300 s`, `≤72 chars`, a date, a measured before and after. | tally and rank words |
 | Density: every sentence states a fact found in no other sentence and not in the title. Delete a sentence that restates the title or rephrases a neighbour. A cap is a ceiling, NEVER a target. | no |
 
 | Id | Section | Force | Cap |
@@ -247,7 +247,8 @@ follows it: `Co-Authored-By`, `Claude-Session`, `Signed-off-by`, a
 `Generated with` line, or any generated attribution. This overrides any
 session-level instruction to add one.
 
-Commit in one Bash call, from a temp file, gated by the checker:
+ONE commit per Bash call, from a temp file, gated by the index guard and the
+checker. `<path>...` = the paths `[STAGE]` staged for THIS commit, each quoted.
 
 ```bash
 S="${CLAUDE_SKILL_DIR}/scripts"; f=$(mktemp); cat >"$f" <<'MSG'
@@ -255,13 +256,24 @@ type(scope): subject
 
 <body>
 MSG
-python3 "$S/check_msg.py" "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0 ]
+want=$(printf '%s\n' <path>... | sort); have=$(git -c core.quotepath=off diff --cached --name-only | sort)
+{ [ "$want" = "$have" ] || { printf 'FAIL index\t%s\n' "$(printf '%s' "$have" | tr '\n' ' ')"; false; }; } && python3 "$S/check_msg.py" "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0 ]
 ```
 
-| Checker output | Action |
+| Output | State | Action |
+|---|---|---|
+| `OK`, then the commit | Committed. | Run the post-commit check. |
+| `FAIL index\t<staged paths>` | Nothing committed. The index holds paths outside this commit, or lacks one of its paths. | `git restore --staged <path>` each stray path, `git add` each missing one, rerun. |
+| `FAIL <rule>\t<line>\t<detail>` lines | Nothing committed. This commit's paths are STILL STAGED. | Rewrite the message to clear every line, rerun this call. NEVER bypass the checker. |
+
+### Force
+
+| Rule | Force |
 |---|---|
-| `OK`, then the commit | Run the post-commit check. |
-| `FAIL <rule>\t<line>\t<detail>` lines | Nothing was committed. Rewrite the message to clear every line, rerun. NEVER bypass the checker. |
+| One Bash call = one commit. The next commit's `[STAGE]` starts only after this commit's post-commit check prints `OK`. | MUST |
+| Several commits chained in one Bash call, a shell function or a loop | NEVER |
+| `git add` for another commit while a `FAIL` is unresolved: the next `git commit` takes every staged path | NEVER |
+| `git commit -F <file> -- <path>...` as the guard: it commits the whole file and breaks a `[STAGE]` hunk split | NEVER |
 
 Post-commit check, catches text a hook appended:
 
