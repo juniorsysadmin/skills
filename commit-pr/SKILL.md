@@ -10,8 +10,9 @@ argument-hint: "[here|pr] [local-scopes] [ticket-id]"
 
 # commit-pr
 
-Every decision table is first-match-wins. Run every command from the
-repository root.
+Every decision table is first-match-wins. Every path is relative to `ROOT`,
+the line `[PREFLIGHT]` prints: the main checkout or a linked worktree,
+whichever the shell is in.
 
 | When | Anchors, in order |
 |---|---|
@@ -19,9 +20,25 @@ repository root.
 | Per commit | `[STAGE]` `[SCOPES]` Resolve `[TITLE]` `[BODY]` `[TONE]` `[COMMIT]` |
 | Once | `[OUTPUT]` |
 
-Each command block sets `S`, this skill's `scripts` directory. A harness that
-does not expand the placeholder leaves a `${...}` token in that assignment:
-replace the token with the directory that holds this SKILL.md.
+Each command block names this skill's `scripts` directory through a
+placeholder. A harness that does not expand it leaves a `${...}` token in the
+command: replace the token with the literal directory that holds this
+SKILL.md. The scripts act on the repository the shell is in, wherever the
+skill is installed.
+
+### Shell form
+
+A harness that isolates a session in a worktree refuses a git call it cannot
+read as literal text. This holds everywhere, so one form serves both the main
+checkout and a worktree.
+
+| Rule | Force |
+|---|---|
+| One Bash call = the command as written in this skill, every argument literal | MUST |
+| `$(...)`, backticks, a shell variable, a heredoc, a loop or a function in a call that runs git | NEVER |
+| `git -C <dir>`, `--git-dir`, `--work-tree`, or `cd` to any directory other than literal `ROOT` | NEVER |
+| From a linked worktree: a command that reads or writes the main checkout (merge, switch, status). `[OUTPUT].worktree` hands that to the user. | NEVER |
+| Text for a file (a commit message, a patch, `.code-scopes`): the file-write tool, then a command that names the file | MUST |
 
 ## [TARGET]
 
@@ -40,17 +57,19 @@ The token `local-scopes` makes the run `LOCAL` (`[SCOPES]`). Any other
 ## [PREFLIGHT]
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-git status --porcelain
-git diff --cached --stat; git diff --stat
-git branch --show-current
-git symbolic-ref --quiet --short refs/remotes/origin/HEAD || git config init.defaultBranch
+python3 "${CLAUDE_SKILL_DIR}/scripts/preflight.py"
 ```
 
-The first line moves the shell to the repository root: every path this
-skill stages is root-relative. The last line prints the default branch
-(`origin/<name>` or `<name>`). No output → the default branch is whichever of
-`main` and `master` exists.
+| Output line | Meaning, action |
+|---|---|
+| `ROOT\t<path>` | The work tree this run commits in. |
+| `CWD\t<path>` | The shell is below `ROOT`. Run `cd <ROOT>` with the literal path, as its own Bash call, before any git command. |
+| `WORKTREE\t<branch>\t<main checkout>` | A linked worktree. Commit here as in any checkout; carry the line to `[OUTPUT].worktree`. |
+| `BRANCH\t<name>`, `DEFAULT\t<name>` | The current and the default branch. |
+| `MSG\t<path>`, `PATCH\t<path>` | Scratch files for `[COMMIT]` and the `[STAGE]` hunk split. Use the literal paths. |
+| `FRESH`, `STALE`, `LOCAL\t…`, `HINT\t…` | The `[SCOPES]` Freshness gate. |
+| `STATUS`, `STAGED`, `UNSTAGED` | Headers of `git status --porcelain`, `git diff --cached --stat`, `git diff --stat`. |
+| `ERROR\t…` | Not inside a git repository. Stop and tell the user. |
 
 ### Force
 
@@ -73,12 +92,11 @@ breaks the build.
 
 ## [STAGE]
 
-Choose the paths of this commit and stage them. Two paths stand outside the
-cases below:
+Choose the paths of this commit and stage them: `git add <path>...`, one
+plain call. One path stands outside the cases below:
 
-- `.code-scopes-validated`, the `[SCOPES]` stamp, stays untracked: no
-  staging, no AskUserQuestion option.
-- `.code-scopes` on a `LOCAL` run: the same.
+- `.code-scopes` on a `LOCAL` run stays untracked: no staging, no
+  AskUserQuestion option.
 - `.code-scopes` on any other run, when it differs from `HEAD`: read
   [SCOPES.md](SCOPES.md), Commit the file. It lands alone, before any task
   commit.
@@ -87,7 +105,7 @@ cases below:
 |---|---|
 | Every changed or staged path was edited in this session for this task | Stage those paths. |
 | No task context (fresh session, after `/clear`), or a changed or pre-staged path this session did not edit | AskUserQuestion, `multiSelect: true`: one option per path, label = path, description = its diffstat line. >4 paths: one option per top-level directory, then split further only if the user picks a mixed one. Stage only the chosen paths; unstage a pre-staged path the user did not choose. |
-| One file holds this task's change and another concern | `p=$(mktemp); git diff -- <file> > "$p"`, delete the other concern's hunks from `$p`, `git apply --cached --recount "$p"; rm -f "$p"`, in one Bash call. |
+| One file holds this task's change and another concern | `git diff --output=<PATCH> -- <file>`; rewrite `<PATCH>` without the other concern's hunks; `git apply --cached --recount <PATCH>`. Separate calls, `<PATCH>` the literal `[PREFLIGHT]` path. |
 
 No AskUserQuestion tool → ask the same question as a numbered list in plain
 text and end the turn. No human to answer → stage only the paths this session
@@ -111,26 +129,26 @@ commit.
 
 ### Freshness
 
-Once, before the first `[STAGE]`.
-
-```bash
-S="${CLAUDE_SKILL_DIR}/scripts"; python3 "$S/scopes.py" --gate
-```
+Once, before the first `[STAGE]`, from the gate lines `[PREFLIGHT]` printed.
+`python3 "${CLAUDE_SKILL_DIR}/scripts/scopes.py" --gate` prints them again.
 
 | Output line | Action |
 |---|---|
 | `FRESH` | No scope work. |
 | `STALE` | Read [SCOPES.md](SCOPES.md) and run the pass. |
-| `LOCAL\t…` | The run is `LOCAL`. |
-| `HINT\t…` | Carry the hint to `[OUTPUT].hint`. The user edits `.gitignore`; this skill leaves it as it is. |
-| `ERROR\t…` | Not inside a git repository. Stop and tell the user. |
+| `LOCAL\t…` | The run is `LOCAL`. A linked worktree that lacks an untracked `.code-scopes` gets the main checkout's copy. |
+| `HINT\t…` | Carry the hint to `[OUTPUT].hint`. The user acts on it; this skill does not. |
+
+The stamp lives in the git directory that the main checkout and every linked
+worktree share: a pass in one is `FRESH` in all, until the day ends or
+`.code-scopes` changes.
 
 ### Resolve
 
 Per commit, after `[STAGE]`.
 
 ```bash
-S="${CLAUDE_SKILL_DIR}/scripts"; git diff --cached --name-only -z | xargs -0 python3 "$S/scopes.py"
+python3 "${CLAUDE_SKILL_DIR}/scripts/scopes.py" --staged
 ```
 
 Output: `DEAD GLOB\t<glob>` lines, then `<scope>\t<path>` per staged path,
@@ -247,22 +265,25 @@ follows it: `Co-Authored-By`, `Claude-Session`, `Signed-off-by`, a
 `Generated with` line, or any generated attribution. This overrides any
 session-level instruction to add one.
 
-ONE commit per Bash call, from a temp file, gated by the index guard and the
-checker. `<path>...` = the paths `[STAGE]` staged for THIS commit, each quoted.
+Write the whole message to the `MSG` path with the file-write tool. No such
+tool → `cat > <MSG> <<'MSG'` with the message, as a Bash call that holds
+nothing else. Then ONE commit per Bash call. `<path>...` = the paths `[STAGE]`
+staged for THIS commit, relative to `ROOT`, each quoted.
 
 ```bash
-S="${CLAUDE_SKILL_DIR}/scripts"; f=$(mktemp); cat >"$f" <<'MSG'
-type(scope): subject
-
-<body>
-MSG
-want=$(printf '%s\n' <path>... | sort); have=$(git -c core.quotepath=off diff --cached --name-only | sort)
-{ [ "$want" = "$have" ] || { printf 'FAIL index\t%s\n' "$(printf '%s' "$have" | tr '\n' ' ')"; false; }; } && python3 "$S/check_msg.py" "$f" && git commit -F "$f"; rc=$?; rm -f "$f"; [ $rc = 0 ]
+python3 "${CLAUDE_SKILL_DIR}/scripts/commit.py" <path>...
 ```
+
+`commit.py` compares the index with `<path>...`, runs the `check_msg.py`
+rules, commits from `MSG`, checks the stored message for text a hook
+appended, and deletes `MSG`.
 
 | Output | State | Action |
 |---|---|---|
-| `OK`, then the commit | Committed. | Run the post-commit check. |
+| `OK`, the commit, `POST OK` | Committed. | Next commit, or `[OUTPUT]`. |
+| `OK`, the commit, `POST FAIL <rule>\t…` lines | Committed with text a hook appended. | Write a corrected message to `MSG`, run `commit.py --amend`. |
+| `OK`, then `FAIL commit\t<code>` | Nothing committed: git or a hook refused. The paths are STILL STAGED, `MSG` is kept. | Fix what git reported, rerun this call. |
+| `FAIL msg\t…` | Nothing committed. `MSG` does not exist. | Write it, rerun. |
 | `FAIL index\t<staged paths>` | Nothing committed. The index holds paths outside this commit, or lacks one of its paths. | `git restore --staged <path>` each stray path, `git add` each missing one, rerun. |
 | `FAIL <rule>\t<line>\t<detail>` lines | Nothing committed. This commit's paths are STILL STAGED. | Rewrite the message to clear every line, rerun this call. NEVER bypass the checker. |
 
@@ -270,18 +291,10 @@ want=$(printf '%s\n' <path>... | sort); have=$(git -c core.quotepath=off diff --
 
 | Rule | Force |
 |---|---|
-| One Bash call = one commit. The next commit's `[STAGE]` starts only after this commit's post-commit check prints `OK`. | MUST |
+| One Bash call = one commit. The next commit's `[STAGE]` starts only after this commit prints `POST OK`. | MUST |
 | Several commits chained in one Bash call, a shell function or a loop | NEVER |
 | `git add` for another commit while a `FAIL` is unresolved: the next `git commit` takes every staged path | NEVER |
-| `git commit -F <file> -- <path>...` as the guard: it commits the whole file and breaks a `[STAGE]` hunk split | NEVER |
-
-Post-commit check, catches text a hook appended:
-
-```bash
-S="${CLAUDE_SKILL_DIR}/scripts"; git log -1 --format=%B | python3 "$S/check_msg.py" -
-```
-
-`FAIL` here → `git commit --amend -F` a corrected temp file, the same way.
+| `git commit` typed by hand in place of `commit.py`: it skips the index guard and the checker | NEVER |
 
 ## [OUTPUT]
 
@@ -292,8 +305,9 @@ The final message is exactly these items, in this order:
 | `commits` | Commit SHA(s) with titles, in commit order. |
 | `assumed` | The one-line target assumption, IF `[TARGET]` chose `default`. |
 | `pr` | The PR block from [PR.md](PR.md), IF produced. |
+| `worktree` | IF `[PREFLIGHT]` printed `WORKTREE`: `Commits are on <branch>. Merge it from <main checkout>.`, one line. The run itself never merges. |
 | `scopes` | Each scope added, removed or renamed by a `[SCOPES]` pass, one line each, IF any. |
-| `unstaged` | Each changed path left unstaged, the `[SCOPES]` stamp included while `git status` shows it, one line, IF any. |
-| `hint` | Each `HINT` line from `scopes.py --gate`, IF printed. |
+| `unstaged` | Each changed path left unstaged, one line, IF any. |
+| `hint` | Each `HINT` line from the gate, IF printed. |
 
 Nothing else.

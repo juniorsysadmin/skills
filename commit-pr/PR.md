@@ -5,8 +5,9 @@ Only when `[TARGET]` in [SKILL.md](SKILL.md) chose `pr`.
 1. Before the first commit of the run, the `[SCOPES]` chore commit
    included: on the default branch?
    `git switch -c <type>/<scope>-<short-slug>` first. `<type>` and `<scope>`
-   are those of the first task commit.
-2. After the last `[COMMIT]`: `git push -u origin "$(git branch --show-current)"`.
+   are those of the first task commit. A linked worktree is already on its
+   own branch: no switch.
+2. After the last `[COMMIT]`: `git push -u origin HEAD`.
 3. Print this block for the user to paste into the hosting service's PR form.
 
 ```

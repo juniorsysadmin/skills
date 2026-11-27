@@ -1,7 +1,8 @@
 # SCOPES
 
-`S` = this skill's `scripts` directory: copy the `S=` assignment from a command
-block in [SKILL.md](SKILL.md) into every Bash call that uses `$S`.
+`<S>` = this skill's `scripts` directory, written out as in the command
+blocks of [SKILL.md](SKILL.md). `[SKILL.md]` Shell form binds every command
+here.
 
 ## Schema
 
@@ -47,26 +48,17 @@ block in [SKILL.md](SKILL.md) into every Bash call that uses `$S`.
 |---|---|
 | Inventory: tracked plus new, never ignored | `git ls-files --cached --others --exclude-standard` |
 | Top-level entries | `git ls-files --cached --others --exclude-standard \| cut -d/ -f1 \| sort -u` |
-| Dead globs, then the scope of each path | `python3 "$S/scopes.py" <path>...` |
-| Scope of every inventory path | `git ls-files -z --cached --others --exclude-standard \| xargs -0 python3 "$S/scopes.py"` |
-| Stamp write: the last step of every pass | `python3 "$S/scopes.py" --stamp` |
+| Dead globs, then the scope of each path | `python3 "<S>/scopes.py" <path>...` |
+| Scope of every inventory path | `python3 "<S>/scopes.py" --inventory` |
+| Schema check and `indent=2` rewrite, after every write of the file | `python3 "<S>/scopes.py" --normalise` |
+| Stamp write: the last step of every pass | `python3 "<S>/scopes.py" --stamp` |
 
-NEVER hand-edit the JSON, NEVER chain `sed`, NEVER resolve a glob by eye.
-Rewrite the whole file with python3:
+NEVER patch one line of the JSON, NEVER chain `sed`, NEVER resolve a glob by
+eye. Write the whole of `<ROOT>/.code-scopes` with the file-write tool, then
+run `--normalise`: `OK`, or `FAIL schema\t<detail>` lines to clear.
 
-```bash
-python3 - <<'PY'
-import json, pathlib, subprocess
-root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True).stdout.strip()
-doc = {
-    "version": 1,
-    "scopes": [
-        {"name": "...", "paths": ["..."], "description": "..."},
-    ],
-}
-pathlib.Path(root, ".code-scopes").write_text(json.dumps(doc, indent=2) + "\n")
-PY
-```
+The stamp is not a file in the work tree: `--stamp` writes it to the git
+directory shared by the main checkout and every linked worktree.
 
 ## Generate
 
@@ -80,7 +72,7 @@ Trigger: `.code-scopes` missing, or `version` not `1`.
 | `size` | At most 25 entries. A vocabulary too large to hold is worse than a coarse one. |
 | `tooling` | One scope covers the repository's own tooling and configuration and holds `.code-scopes` in its `paths`. Name it `claude` IF `.claude/` exists, else `meta`. |
 | `docs` | Attach each documentation path to the scope of the area it describes. |
-| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files and the stamp `.code-scopes-validated`. Then `--stamp`, then Commit the file. |
+| `write` | Sort most-specific-first, write the file, run `scopes.py` over the inventory: zero `DEAD GLOB`, zero `NO MATCH` outside repository-wide files. Then `--normalise`, then `--stamp`, then Commit the file. |
 
 `git log` is NEVER a source: scope names in past commits carry no authority.
 
@@ -92,7 +84,7 @@ Trigger: the file exists, `version` is `1`, the gate printed `STALE`, or
 | Finding | Action |
 |---|---|
 | `DEAD GLOB` not explained by a path this commit adds | Remove the glob. Remove the scope when no glob is left. |
-| A top-level inventory entry other than the stamp `.code-scopes-validated` gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate `split` and `size`. |
+| A top-level inventory entry gives `NO MATCH` | Add it: to a family glob if it matches one's pattern, else a scope per Generate `split` and `size`. |
 | An independently deployed unit below a scoped directory has no more specific scope | Add a scope for it, ordered before its parent. |
 | ≥3 paths in one scope share a prefix and would all match one family glob | Replace them with the family glob. Move every other path that glob would capture into an earlier scope first, then confirm with `scopes.py` over the inventory that no path changed scope. |
 | A `description` holds a count or an enumeration of members | Rewrite it without them. |
